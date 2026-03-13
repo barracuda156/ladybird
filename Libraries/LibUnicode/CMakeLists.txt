@@ -1,5 +1,6 @@
 set(SOURCES
     Calendar.cpp
+    Calendars/AdjustedEraCalendar.cpp
     CharacterTypes.cpp
     Collator.cpp
     CurrencyCode.cpp

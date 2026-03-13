@@ -7,8 +7,10 @@
 #include <AK/AllOf.h>
 #include <AK/Array.h>
 #include <AK/GenericLexer.h>
+#include <AK/GenericShorthands.h>
 #include <AK/StringBuilder.h>
 #include <AK/TypeCasts.h>
+#include <LibUnicode/Calendars/AdjustedEraCalendar.h>
 #include <LibUnicode/DateTimeFormat.h>
 #include <LibUnicode/ICU.h>
 #include <LibUnicode/Locale.h>
@@ -628,7 +630,16 @@ static void apply_time_zone_to_formatter(icu::SimpleDateFormat& formatter, icu::
     auto* calendar = icu::Calendar::createInstance(time_zone_data->time_zone(), locale, status);
     verify_icu_success(status);
 
-    CalendarData::adjust_time_range_for_proleptic_calendar(*calendar);
+    if (auto const* calendar_type = calendar->getType(); calendar_type == "coptic"sv) {
+        calendar = new AdjustedEraCalendar(adopt_own(*calendar), locale, status, AdjustedEraCalendar::EraMode::SingleEra);
+        verify_icu_success(status);
+    } else if (first_is_one_of(calendar_type, "islamic"sv, "islamic-civil"sv, "islamic-tbla"sv, "islamic-umalqura"sv)) {
+        calendar = new AdjustedEraCalendar(adopt_own(*calendar), locale, status, AdjustedEraCalendar::EraMode::DualEra);
+        verify_icu_success(status);
+    } else {
+        CalendarData::adjust_time_range_for_proleptic_calendar(*calendar);
+    }
+
     formatter.adoptCalendar(calendar);
 }
 
