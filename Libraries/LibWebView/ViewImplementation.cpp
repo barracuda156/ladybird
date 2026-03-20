@@ -486,6 +486,7 @@ void ViewImplementation::set_is_fullscreen(Web::ViewportIsFullscreen is_fullscre
 {
     if (m_is_fullscreen == is_fullscreen)
         return;
+    m_is_fullscreen = is_fullscreen;
 
     handle_resize();
     did_update_window_rect();
