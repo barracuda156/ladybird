@@ -44,9 +44,46 @@ void ObjectStore::visit_edges(Visitor& visitor)
 
 void ObjectStore::remove_records_in_range(GC::Ref<IDBKeyRange> range)
 {
-    m_records.remove_all_matching([&](auto const& record) {
-        return range->is_in_range(record.key);
-    });
+    if (m_records.is_empty())
+        return;
+
+    // Since records are sorted by key, records in range form a contiguous block.
+    // Binary search for the first record in range.
+    size_t lo = 0;
+    size_t hi = m_records.size();
+
+    auto lower = range->lower_key();
+    if (lower) {
+        // Find the first record with key >= lower (or > lower if lower_open).
+        size_t l = 0, h = m_records.size();
+        while (l < h) {
+            size_t mid = l + (h - l) / 2;
+            auto cmp = Key::compare_two_keys(m_records[mid].key, *lower);
+            if (cmp < 0 || (cmp == 0 && range->lower_open()))
+                l = mid + 1;
+            else
+                h = mid;
+        }
+        lo = l;
+    }
+
+    auto upper = range->upper_key();
+    if (upper) {
+        // Find the first record with key > upper (or >= upper if upper_open).
+        size_t l = lo, h = m_records.size();
+        while (l < h) {
+            size_t mid = l + (h - l) / 2;
+            auto cmp = Key::compare_two_keys(m_records[mid].key, *upper);
+            if (cmp < 0 || (cmp == 0 && !range->upper_open()))
+                l = mid + 1;
+            else
+                h = mid;
+        }
+        hi = l;
+    }
+
+    if (lo < hi)
+        m_records.remove(lo, hi - lo);
 }
 
 bool ObjectStore::has_record_with_key(GC::Ref<Key> key)
