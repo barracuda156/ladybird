@@ -23,6 +23,7 @@
 #include <LibWeb/CSS/PreferredMotion.h>
 #include <LibWeb/Clipboard/SystemClipboard.h>
 #include <LibWeb/HTML/ActivateTab.h>
+#include <LibWebView/BookmarkStore.h>
 #include <LibWebView/FileDownloader.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Options.h>
@@ -34,6 +35,7 @@
 namespace WebView {
 
 struct ApplicationSettingsObserver;
+struct ApplicationBookmarkStoreObserver;
 
 class WEBVIEW_API Application : public DevTools::DevToolsDelegate {
     AK_MAKE_NONCOPYABLE(Application);
@@ -53,6 +55,11 @@ public:
 
     static Requests::RequestClient& request_server_client() { return *the().m_request_server_client; }
     static ImageDecoderClient::Client& image_decoder_client() { return *the().m_image_decoder_client; }
+
+    static BookmarkStore& bookmark_store() { return the().m_bookmark_store; }
+    void update_bookmark_action_for_current_web_view();
+    void bookmarks_changed(Badge<ApplicationBookmarkStoreObserver>);
+    void show_bookmarks_bar_changed(Badge<ApplicationSettingsObserver>);
 
     static CookieJar& cookie_jar() { return *the().m_cookie_jar; }
     static StorageJar& storage_jar() { return *the().m_storage_jar; }
@@ -121,6 +128,8 @@ public:
     Menu& contrast_menu() { return *m_contrast_menu; }
     Menu& motion_menu() { return *m_motion_menu; }
 
+    Menu& bookmarks_menu() { return *m_bookmarks_menu; }
+
     Menu& inspect_menu() { return *m_inspect_menu; }
     Action& view_source_action() { return *m_view_source_action; }
 
@@ -148,6 +157,9 @@ protected:
 
     virtual Optional<ByteString> ask_user_for_download_path([[maybe_unused]] StringView file) const { return {}; }
 
+    virtual void rebuild_bookmarks_menu() const { }
+    virtual void update_bookmarks_bar_display([[maybe_unused]] bool show_bookmarks_bar) const { }
+
     virtual void on_devtools_enabled() const;
     virtual void on_devtools_disabled() const;
 
@@ -161,6 +173,9 @@ private:
     ErrorOr<void> launch_devtools_server();
 
     void initialize_actions();
+
+    void update_bookmarks_bar_action();
+    void create_bookmark_menu_items(Menu* menu = nullptr, Vector<BookmarkItem> const* items = nullptr);
 
     virtual Vector<DevTools::TabDescription> tab_list() const override;
     virtual Vector<DevTools::CSSProperty> css_property_list() const override;
@@ -204,6 +219,9 @@ private:
     Settings m_settings;
     OwnPtr<ApplicationSettingsObserver> m_settings_observer;
 
+    BookmarkStore m_bookmark_store;
+    OwnPtr<ApplicationBookmarkStoreObserver> m_bookmark_store_observer;
+
     Main::Arguments m_arguments;
     BrowserOptions m_browser_options;
     RequestServerOptions m_request_server_options;
@@ -243,6 +261,11 @@ private:
 
     RefPtr<Menu> m_motion_menu;
     Web::CSS::PreferredMotion m_motion { Web::CSS::PreferredMotion::Auto };
+
+    RefPtr<Menu> m_bookmarks_menu;
+    RefPtr<Action> m_toggle_bookmark_action;
+    RefPtr<Action> m_toggle_bookmark_bar_action;
+    size_t m_bookmarks_menu_static_size { 0 };
 
     RefPtr<Menu> m_inspect_menu;
     RefPtr<Action> m_view_source_action;
