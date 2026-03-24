@@ -25,4 +25,7 @@ WEBVIEW_API void set_mach_server_name(ByteString name);
 
 WEBVIEW_API ErrorOr<void> handle_attached_debugger();
 
+ErrorOr<JsonObject> read_json_file(ByteString const& path);
+ErrorOr<void> write_json_file(ByteString const& path, JsonValue const& value);
+
 }
