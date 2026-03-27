@@ -850,6 +850,11 @@ WebIDL::ExceptionOr<Document*> Document::open(Optional<String> const&, Optional<
         // FIXME: 3. Run the URL and history update steps with document and newURL.
     }
 
+    // AD-HOC: Record that this document was an initial about:blank before document.open() cleared the flag, so the
+    //         Navigation API can keep entries and events disabled.
+    if (is_initial_about_blank())
+        as<HTML::Window>(HTML::relevant_global_object(*this)).navigation()->set_was_initial_about_blank_opened(true);
+
     // 13. Set document's is initial about:blank to false.
     set_is_initial_about_blank(false);
 
