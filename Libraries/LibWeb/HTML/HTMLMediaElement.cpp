@@ -1582,7 +1582,11 @@ void HTMLMediaElement::set_up_playback_manager()
 
     // -> If the media data is corrupted
     m_playback_manager->on_error = GC::weak_callback(*this, [](auto& self, Media::DecoderError&& error) {
-        self.set_decoder_error(MUST(String::from_utf8(error.description())));
+        self.queue_a_media_element_task([self = GC::Weak(self), error = move(error)] {
+            if (!self)
+                return;
+            self->set_decoder_error(MUST(String::from_utf8(error.description())));
+        });
     });
 
     m_playback_manager->add_media_source(*m_fetch_data->stream);
