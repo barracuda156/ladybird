@@ -1785,9 +1785,6 @@ void Document::update_style()
 
     build_registered_properties_cache();
 
-    // FIXME: We don't need to rebuild this cache on every style update, just if a @counter-style rule has changed.
-    build_counter_style_cache();
-
     auto invalidation = update_style_recursively(*this, style_computer(), false, false, false);
     if (!invalidation.is_none())
         invalidate_display_list();
@@ -6559,6 +6556,14 @@ void Document::for_each_active_css_style_sheet(Function<void(CSS::CSSStyleSheet&
     }
 }
 
+HashMap<FlyString, NonnullRefPtr<CSS::CounterStyle const>> const& Document::registered_counter_styles() const
+{
+    if (m_needs_counter_style_cache_update)
+        const_cast<Document&>(*this).build_counter_style_cache();
+
+    return m_registered_counter_styles;
+}
+
 double Document::ensure_element_shared_css_random_base_value(CSS::RandomCachingKey const& random_caching_key)
 {
     return m_element_shared_css_random_base_value_cache.ensure(random_caching_key, []() {
@@ -8103,6 +8108,8 @@ void Document::build_counter_style_cache()
             --i;
         }
     }
+
+    m_needs_counter_style_cache_update = false;
 }
 
 StringView to_string(SetNeedsLayoutReason reason)
