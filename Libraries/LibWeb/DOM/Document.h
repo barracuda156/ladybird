@@ -1033,8 +1033,7 @@ public:
 
     void exit_pointer_lock();
 
-    Optional<CSS::SelectorList> const* cached_query_selector_result(String const& selector_text) const;
-    void cache_query_selector_result(String selector_text, Optional<CSS::SelectorList>);
+    Optional<CSS::SelectorList> const& parse_or_cache_selector_list(StringView) const;
 
 protected:
     virtual void initialize(JS::Realm&) override;
@@ -1460,9 +1459,8 @@ private:
     // https://drafts.csswg.org/css-values-5/#random-caching
     HashMap<CSS::RandomCachingKey, double> m_element_shared_css_random_base_value_cache;
 
-    // Cache of parsed selector lists for querySelectorAll/querySelector.
-    static constexpr size_t max_selector_query_cache_size = 256;
-    HashMap<String, Optional<CSS::SelectorList>> m_selector_query_cache;
+    // Cache of parsed selector lists for querySelectorAll/querySelector/matches/closest.
+    mutable HashMap<String, Optional<CSS::SelectorList>> m_selector_query_cache;
 
     // https://fullscreen.spec.whatwg.org/#list-of-pending-fullscreen-events
     Vector<PendingFullscreenEvent> m_pending_fullscreen_events;
