@@ -122,6 +122,11 @@ public:
         return true;
     }
 
+    bool can_cache_typed_array_view_data_pointer() const
+    {
+        return !is_detached() && is_fixed_length() && m_data_block.byte_buffer.has<ByteBuffer>();
+    }
+
     // 25.2.2.2 IsSharedArrayBuffer ( obj ), https://tc39.es/ecma262/#sec-issharedarraybuffer
     bool is_shared_array_buffer() const
     {
