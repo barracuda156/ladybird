@@ -36,6 +36,8 @@ void WorkerAgentParent::initialize(JS::Realm& realm)
 {
     Base::initialize(realm);
 
+    m_outside_settings->keep_worker_agent_alive_while_starting(*this);
+
     m_message_port = MessagePort::create(realm);
     m_message_port->entangle_with(*m_outside_port);
 
@@ -75,17 +77,33 @@ void WorkerAgentParent::setup_worker_ipc_callbacks(JS::Realm& realm)
         auto response = client.request_worker_agent(worker_type);
         return { move(response.worker_handle), move(response.request_server_handle), move(response.image_decoder_handle) };
     };
+    m_worker_ipc->on_worker_close = [self = GC::Weak { *this }]() {
+        if (!self)
+            return;
+        self->release_startup_keep_alive();
+    };
+    m_worker_ipc->on_worker_script_load_success = [self = GC::Weak { *this }]() {
+        if (!self)
+            return;
+        self->release_startup_keep_alive();
+    };
     m_worker_ipc->on_worker_script_load_failure = [self = GC::Weak { *this }]() {
         if (!self)
             return;
-        auto& outside_settings = *self->m_outside_settings;
-        auto& event_target = *self->m_worker_event_target;
+        auto outside_settings = GC::Ref { *self->m_outside_settings };
+        auto event_target = GC::Ref { *self->m_worker_event_target };
         // See: https://html.spec.whatwg.org/multipage/workers.html#worker-processing-model, onComplete handler for fetching script.
         // 1. Queue a global task on the DOM manipulation task source given worker's relevant global object to fire an event named error at worker.
-        queue_global_task(Task::Source::DOMManipulation, outside_settings.global_object(), GC::create_function(outside_settings.heap(), [&event_target, &outside_settings]() {
-            event_target.dispatch_event(DOM::Event::create(outside_settings.realm(), EventNames::error));
+        queue_global_task(Task::Source::DOMManipulation, outside_settings->global_object(), GC::create_function(outside_settings->heap(), [event_target, outside_settings]() {
+            event_target->dispatch_event(DOM::Event::create(outside_settings->realm(), EventNames::error));
         }));
+        self->release_startup_keep_alive();
     };
+}
+
+void WorkerAgentParent::release_startup_keep_alive()
+{
+    m_outside_settings->release_worker_agent_from_startup_keep_alive(*this);
 }
 
 void WorkerAgentParent::visit_edges(Cell::Visitor& visitor)
