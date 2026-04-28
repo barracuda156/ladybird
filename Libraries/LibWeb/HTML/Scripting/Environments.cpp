@@ -313,7 +313,8 @@ bool is_scripting_enabled(JS::Realm const& realm)
     auto const& document = as<HTML::Window>(realm.global_object()).associated_document();
 
     // NB: WebUI pages are internal pages requiring javascript, so we do not consider user configuration for these.
-    if (!document.page().is_scripting_enabled() && !URL::is_webui_url(document.url()))
+    //     about:history is named here and not in URL::is_webui_url(), as most of the engine includes LibURL/URL.h.
+    if (!document.page().is_scripting_enabled() && !URL::is_webui_url(document.url()) && document.url() != URL::URL::about("history"_string))
         return false;
 
     // Either settings's global object is not a Window object, or settings's global object's associated Document's active sandboxing flag set does not have its sandboxed scripts browsing context flag set.

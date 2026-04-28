@@ -71,6 +71,7 @@ list(TRANSFORM INTERNAL_RESOURCES PREPEND "${LADYBIRD_SOURCE_DIR}/Base/res/ladyb
 set(ABOUT_PAGES
     about.html
     bookmarks.html
+    history.html
     newtab.html
     processes.html
     settings.html
