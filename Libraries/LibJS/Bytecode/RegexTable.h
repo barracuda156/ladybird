@@ -9,6 +9,7 @@
 #include <AK/DistinctNumeric.h>
 #include <AK/String.h>
 #include <AK/Vector.h>
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibRegex/Regex.h>
 #include <LibRegex/RegexParser.h>
 
@@ -33,6 +34,7 @@ public:
     Regex<ECMA262> const& get(RegexTableIndex) const;
     void dump() const;
     bool is_empty() const { return m_regexes.is_empty(); }
+    size_t external_memory_size() const { return vector_external_memory_size(m_regexes); }
 
 private:
     Vector<Regex<ECMA262>> m_regexes;
