@@ -8,6 +8,7 @@
 #include <AK/StringBuilder.h>
 #include <LibJS/Runtime/Completion.h>
 #include <LibJS/Runtime/Error.h>
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibJS/Runtime/ExecutionContext.h>
 #include <LibJS/Runtime/FunctionObject.h>
 #include <LibJS/Runtime/GlobalObject.h>
@@ -53,6 +54,15 @@ void Error::visit_edges(Visitor& visitor)
 {
     Base::visit_edges(visitor);
     visitor.visit(m_cached_string);
+}
+
+size_t Error::external_memory_size() const
+{
+    auto size = Object::external_memory_size();
+    size = saturating_add_external_memory_size(size, vector_external_memory_size(m_traceback));
+    for (auto const& frame : m_traceback)
+        size = saturating_add_external_memory_size(size, utf16_string_external_memory_size(frame.function_name));
+    return size;
 }
 
 // 20.5.8.1 InstallErrorCause ( O, options ), https://tc39.es/ecma262/#sec-installerrorcause

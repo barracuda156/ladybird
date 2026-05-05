@@ -91,6 +91,7 @@ private:
     Script(Realm&, StringView filename, RustIntegration::ScriptResult&&, HostDefined*);
 
     virtual void visit_edges(Cell::Visitor&) override;
+    virtual size_t external_memory_size() const override;
 
     GC::Ptr<Realm> m_realm;                       // [[Realm]]
     RefPtr<Program> m_parse_node;                 // [[ECMAScriptCode]]

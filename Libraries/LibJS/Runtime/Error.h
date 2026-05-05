@@ -57,6 +57,7 @@ protected:
     virtual void visit_edges(Visitor&) override;
 
 private:
+    virtual size_t external_memory_size() const override;
     virtual bool is_error_object() const final { return true; }
 
     void populate_stack();
