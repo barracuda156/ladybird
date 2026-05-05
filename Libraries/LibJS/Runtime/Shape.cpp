@@ -6,6 +6,7 @@
  */
 
 #include <LibGC/DeferGC.h>
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibJS/Runtime/Realm.h>
 #include <LibJS/Runtime/Shape.h>
 #include <LibJS/Runtime/VM.h>
@@ -16,12 +17,6 @@ GC_DEFINE_ALLOCATOR(Shape);
 GC_DEFINE_ALLOCATOR(PrototypeChainValidity);
 
 Shape::~Shape() = default;
-
-template<typename Map>
-static size_t ordered_hash_map_external_memory_size(Map const& map)
-{
-    return map.capacity() * (sizeof(typename Map::KeyType) + sizeof(typename Map::ValueType));
-}
 
 size_t Shape::external_memory_size() const
 {
