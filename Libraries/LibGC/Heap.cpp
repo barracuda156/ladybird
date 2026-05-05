@@ -7,6 +7,7 @@
 
 #include <AK/Badge.h>
 #include <AK/BinarySearch.h>
+#include <AK/Checked.h>
 #include <AK/Debug.h>
 #include <AK/Function.h>
 #include <AK/HashTable.h>
@@ -69,12 +70,40 @@ void Heap::will_allocate(size_t size)
     if (should_collect_on_every_allocation()) {
         m_allocated_bytes_since_last_gc = 0;
         collect_garbage();
-    } else if (m_allocated_bytes_since_last_gc + size > m_gc_bytes_threshold) {
+    } else if (Checked<size_t>::addition_would_overflow(m_allocated_bytes_since_last_gc, size) || m_allocated_bytes_since_last_gc + size > m_gc_bytes_threshold) {
         m_allocated_bytes_since_last_gc = 0;
         collect_garbage();
     }
 
-    m_allocated_bytes_since_last_gc += size;
+    m_allocated_bytes_since_last_gc = Checked<size_t>::saturating_add(m_allocated_bytes_since_last_gc, size);
+}
+
+void Heap::did_allocate_external_memory(size_t size)
+{
+    will_allocate(size);
+}
+
+void Heap::did_free_external_memory(size_t size)
+{
+    if (size > m_allocated_bytes_since_last_gc) {
+        m_allocated_bytes_since_last_gc = 0;
+        return;
+    }
+
+    m_allocated_bytes_since_last_gc -= size;
+}
+
+void Heap::update_gc_bytes_threshold(size_t live_cell_bytes, size_t live_external_bytes)
+{
+    Checked<size_t> live_bytes = live_cell_bytes;
+    live_bytes += live_external_bytes;
+
+    if (live_bytes.has_overflow()) {
+        m_gc_bytes_threshold = NumericLimits<size_t>::max();
+        return;
+    }
+
+    m_gc_bytes_threshold = max(live_bytes.value(), GC_MIN_BYTES_THRESHOLD);
 }
 
 static void add_possible_value(HashMap<FlatPtr, HeapRoot>& possible_pointers, FlatPtr data, HeapRoot origin, FlatPtr min_block_address, FlatPtr max_block_address)
@@ -725,6 +754,7 @@ void Heap::sweep_dead_cells(bool print_report, Core::ElapsedTimer const& measure
     size_t live_cells = 0;
     size_t collected_cell_bytes = 0;
     size_t live_cell_bytes = 0;
+    size_t live_external_bytes = 0;
 
     for_each_block([&](auto& block) {
         bool block_has_live_cells = false;
@@ -740,6 +770,10 @@ void Heap::sweep_dead_cells(bool print_report, Core::ElapsedTimer const& measure
                 block_has_live_cells = true;
                 ++live_cells;
                 live_cell_bytes += block.cell_size();
+                auto cell_external_memory_size = cell->external_memory_size();
+                live_external_bytes = cell_external_memory_size > NumericLimits<size_t>::max() - live_external_bytes
+                    ? NumericLimits<size_t>::max()
+                    : live_external_bytes + cell_external_memory_size;
             }
         });
         if (!block_has_live_cells)
@@ -772,7 +806,7 @@ void Heap::sweep_dead_cells(bool print_report, Core::ElapsedTimer const& measure
         });
     }
 
-    m_gc_bytes_threshold = live_cell_bytes > GC_MIN_BYTES_THRESHOLD ? live_cell_bytes : GC_MIN_BYTES_THRESHOLD;
+    update_gc_bytes_threshold(live_cell_bytes, live_external_bytes);
 
     if (print_report) {
         AK::Duration const time_spent = measurement_timer.elapsed_time();
@@ -786,6 +820,7 @@ void Heap::sweep_dead_cells(bool print_report, Core::ElapsedTimer const& measure
         dbgln("=============================================");
         dbgln("     Time spent: {} ms", time_spent.to_milliseconds());
         dbgln("     Live cells: {} ({} bytes)", live_cells, live_cell_bytes);
+        dbgln("  Live external: {} bytes", live_external_bytes);
         dbgln("Collected cells: {} ({} bytes)", collected_cells, collected_cell_bytes);
         dbgln("    Live blocks: {} ({} bytes)", live_block_count, live_block_count * HeapBlock::BLOCK_SIZE);
         dbgln("   Freed blocks: {} ({} bytes)", empty_blocks.size(), empty_blocks.size() * HeapBlock::BLOCK_SIZE);
