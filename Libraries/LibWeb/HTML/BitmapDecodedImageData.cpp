@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Checked.h>
 #include <LibGC/Heap.h>
 #include <LibGfx/Bitmap.h>
 #include <LibGfx/ImmutableBitmap.h>
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibJS/Runtime/Realm.h>
 #include <LibWeb/HTML/BitmapDecodedImageData.h>
 #include <LibWeb/Painting/DisplayListRecorder.h>
@@ -29,6 +31,30 @@ BitmapDecodedImageData::BitmapDecodedImageData(Vector<Frame>&& frames, size_t lo
 }
 
 BitmapDecodedImageData::~BitmapDecodedImageData() = default;
+
+static size_t immutable_bitmap_external_memory_size(Gfx::ImmutableBitmap const& bitmap)
+{
+    if (auto backing_bitmap = bitmap.bitmap())
+        return backing_bitmap->data_size();
+
+    // NB: A bitmap that is backed by YUV planes has no Gfx::Bitmap. Count what it takes once it is converted.
+    Checked<size_t> size = static_cast<size_t>(bitmap.width());
+    size *= static_cast<size_t>(bitmap.height());
+    size *= sizeof(u32);
+    if (size.has_overflow())
+        return NumericLimits<size_t>::max();
+    return size.value();
+}
+
+size_t BitmapDecodedImageData::external_memory_size() const
+{
+    size_t size = JS::vector_external_memory_size(m_frames);
+    for (auto const& frame : m_frames) {
+        if (frame.bitmap)
+            size = JS::saturating_add_external_memory_size(size, immutable_bitmap_external_memory_size(*frame.bitmap));
+    }
+    return size;
+}
 
 RefPtr<Gfx::ImmutableBitmap> BitmapDecodedImageData::bitmap(size_t frame_index, Gfx::IntSize) const
 {
