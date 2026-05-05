@@ -287,6 +287,7 @@ public:
     void set_has_parameter_map() { m_flags |= Flag::HasParameterMap; }
 
     virtual void visit_edges(Cell::Visitor&) override;
+    virtual size_t external_memory_size() const override;
 
     Value get_direct(size_t index) const { return m_named_properties[index]; }
     void put_direct(size_t index, Value value) { m_named_properties[index] = value; }
@@ -396,6 +397,8 @@ private:
     void free_indexed_elements();
     void ensure_named_storage_capacity(u32 needed);
     bool named_storage_is_inline() const { return m_named_properties == const_cast<Object*>(this)->m_inline_named_storage; }
+    size_t named_storage_external_memory_size() const;
+    size_t indexed_storage_external_memory_size() const;
 
 public:
     static constexpr u32 INLINE_NAMED_PROPERTY_CAPACITY = 2;

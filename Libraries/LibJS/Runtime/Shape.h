@@ -118,6 +118,7 @@ private:
 
     virtual void finalize() override;
     virtual void visit_edges(Visitor&) override;
+    virtual size_t external_memory_size() const override;
 
     [[nodiscard]] GC::Ptr<Shape> get_or_prune_cached_forward_transition(TransitionKey const&);
     [[nodiscard]] GC::Ptr<Shape> get_or_prune_cached_prototype_transition(Object* prototype);
