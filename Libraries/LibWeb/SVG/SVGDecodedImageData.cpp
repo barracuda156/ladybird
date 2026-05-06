@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Checked.h>
+#include <AK/NumericLimits.h>
 #include <LibGfx/Bitmap.h>
+#include <LibGfx/PaintingSurface.h>
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibWeb/Bindings/MainThreadVM.h>
 #include <LibWeb/CSS/ComputedProperties.h>
 #include <LibWeb/DOM/Document.h>
@@ -94,6 +98,48 @@ void SVGDecodedImageData::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_document);
     visitor.visit(m_page_client);
     visitor.visit(m_root_element);
+}
+
+static size_t surface_external_memory_size(Gfx::PaintingSurface const& surface)
+{
+    auto surface_size = surface.size();
+    if (surface_size.is_empty())
+        return 0;
+
+    Checked<size_t> pixel_size = static_cast<size_t>(surface_size.width());
+    pixel_size *= static_cast<size_t>(surface_size.height());
+    pixel_size *= sizeof(u32);
+    if (pixel_size.has_overflow())
+        return NumericLimits<size_t>::max();
+    return pixel_size.value();
+}
+
+static size_t immutable_bitmap_external_memory_size(Gfx::ImmutableBitmap const& bitmap)
+{
+    if (auto backing_bitmap = bitmap.bitmap())
+        return backing_bitmap->data_size();
+
+    // NB: A bitmap that is backed by YUV planes has no Gfx::Bitmap. Count what it takes once it is converted.
+    Checked<size_t> size = static_cast<size_t>(bitmap.width());
+    size *= static_cast<size_t>(bitmap.height());
+    size *= sizeof(u32);
+    if (size.has_overflow())
+        return NumericLimits<size_t>::max();
+    return size.value();
+}
+
+size_t SVGDecodedImageData::external_memory_size() const
+{
+    size_t size = Base::external_memory_size();
+    size = JS::saturating_add_external_memory_size(size, JS::hash_map_external_memory_size(m_cached_rendered_bitmaps));
+    for (auto const& cached_bitmap : m_cached_rendered_bitmaps)
+        size = JS::saturating_add_external_memory_size(size, immutable_bitmap_external_memory_size(*cached_bitmap.value));
+
+    size = JS::saturating_add_external_memory_size(size, JS::hash_map_external_memory_size(m_cached_rendered_surfaces));
+    for (auto const& cached_surface : m_cached_rendered_surfaces)
+        size = JS::saturating_add_external_memory_size(size, surface_external_memory_size(*cached_surface.value));
+
+    return size;
 }
 
 RefPtr<Painting::DisplayList> SVGDecodedImageData::record_display_list(Gfx::IntSize size) const
