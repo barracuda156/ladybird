@@ -473,6 +473,7 @@ protected:
 
     virtual void visit_edges(Cell::Visitor&) override;
     virtual void finalize() override;
+    virtual size_t external_memory_size() const override;
 
     GC::Ptr<Document> m_document;
     GC::Ptr<Layout::Node> m_layout_node;
