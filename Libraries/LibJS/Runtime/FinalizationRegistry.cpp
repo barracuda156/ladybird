@@ -81,12 +81,15 @@ ThrowCompletionOr<void> FinalizationRegistry::cleanup(GC::Ptr<JobCallback> callb
     auto cleanup_callback = callback ? callback : m_cleanup_callback;
 
     // 3. While finalizationRegistry.[[Cells]] contains a Record cell such that cell.[[WeakRefTarget]] is empty, an implementation may perform the following steps:
-    for (auto it = m_records.begin(); it != m_records.end();) {
+    for (;;) {
         // a. Choose any such cell.
-        if (it->target != nullptr) {
-            ++it;
-            continue;
+        auto it = m_records.begin();
+        for (; it != m_records.end(); ++it) {
+            if (it->target == nullptr)
+                break;
         }
+        if (it == m_records.end())
+            break;
 
         // b. Remove cell from finalizationRegistry.[[Cells]].
         GC::RootVector<Value> arguments(vm.heap());
