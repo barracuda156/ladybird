@@ -104,8 +104,8 @@ public:
     TextUnderlinePosition text_underline_position() const;
     Vector<BackgroundLayerData> background_layers() const;
     BackgroundBox background_color_clip() const;
-    Length border_spacing_horizontal() const;
-    Length border_spacing_vertical() const;
+    CSSPixels border_spacing_horizontal() const;
+    CSSPixels border_spacing_vertical() const;
     CaptionSide caption_side() const;
     Clip clip() const;
     Display display() const;
@@ -120,7 +120,7 @@ public:
     ContentDataAndQuoteNestingLevel content(DOM::AbstractElement&, u32 initial_quote_nesting_level) const;
     ContentVisibility content_visibility() const;
     Vector<CursorData> cursor() const;
-    Variant<Length, double> tab_size() const;
+    Variant<CSSPixels, double> tab_size() const;
     WhiteSpaceCollapse white_space_collapse() const;
     WhiteSpaceTrimData white_space_trim() const;
     WordBreak word_break() const;

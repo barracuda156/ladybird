@@ -860,7 +860,7 @@ void PaintableBox::paint_box_shadow(DisplayListRecordingContext& context) const
     Vector<Painting::ShadowData> resolved_box_shadow_data;
     resolved_box_shadow_data.ensure_capacity(box_shadow_layers.size());
     for (auto const& layer : box_shadow_layers)
-        resolved_box_shadow_data.unchecked_append(ShadowData::from_css(layer, layout_node()));
+        resolved_box_shadow_data.unchecked_append(ShadowData::from_css(layer));
     auto borders_data = BordersData {
         .top = computed_values().border_top(),
         .right = computed_values().border_right(),
@@ -1221,7 +1221,7 @@ Optional<BordersData> PaintableBox::outline_data() const
 
 CSSPixels PaintableBox::outline_offset() const
 {
-    return computed_values().outline_offset().to_px(layout_node());
+    return computed_values().outline_offset();
 }
 
 ScrollFrameIndex PaintableBox::nearest_scroll_frame_index() const

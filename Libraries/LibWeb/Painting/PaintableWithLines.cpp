@@ -228,7 +228,6 @@ TraversalDecision PaintableWithLines::hit_test_fragments(CSSPixelPoint position,
 
 static void resolve_text_fragment_properties(PaintableWithLines const& paintable_with_lines)
 {
-    auto const& parent_layout_node = paintable_with_lines.layout_node();
     for (auto& fragment : const_cast<PaintableWithLines&>(paintable_with_lines).fragments()) {
         auto const& fragment_layout_node = fragment.layout_node();
         if (!fragment_layout_node.is_text_node())
@@ -264,7 +263,7 @@ static void resolve_text_fragment_properties(PaintableWithLines const& paintable
         if (!text_shadow.is_empty()) {
             resolved_shadow_data.ensure_capacity(text_shadow.size());
             for (auto const& layer : text_shadow)
-                resolved_shadow_data.append(ShadowData::from_css(layer, parent_layout_node));
+                resolved_shadow_data.append(ShadowData::from_css(layer));
         }
         fragment.set_shadows(move(resolved_shadow_data));
     }
