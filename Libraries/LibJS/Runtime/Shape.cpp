@@ -6,6 +6,7 @@
  */
 
 #include <LibGC/DeferGC.h>
+#include <LibGC/RootVector.h>
 #include <LibJS/Runtime/ExternalMemory.h>
 #include <LibJS/Runtime/Realm.h>
 #include <LibJS/Runtime/Shape.h>
@@ -411,8 +412,11 @@ void Shape::invalidate_all_prototype_chains_leading_to_this()
     if (!m_child_prototype_shapes || m_child_prototype_shapes->is_empty())
         return;
 
-    HashTable<Shape*> shapes_to_invalidate;
-    Vector<Shape*> worklist;
+    // NB: The hash table only finds the shapes that were seen already. What keeps the shapes alive while the
+    //     loop at the end allocates is the rooted vector next to it.
+    HashTable<Shape*> seen_shapes;
+    GC::RootVector<Shape*> shapes_to_invalidate(heap());
+    GC::RootVector<Shape*> worklist(heap());
     auto enqueue_children_of = [&](Shape& shape) {
         if (!shape.m_child_prototype_shapes)
             return;
@@ -421,8 +425,10 @@ void Shape::invalidate_all_prototype_chains_leading_to_this()
             auto child = weak.ptr();
             if (!child)
                 return true;
-            if (shapes_to_invalidate.set(child.ptr()) == HashSetResult::InsertedNewEntry)
+            if (seen_shapes.set(child.ptr()) == HashSetResult::InsertedNewEntry) {
+                shapes_to_invalidate.append(child.ptr());
                 worklist.append(child.ptr());
+            }
             return false;
         });
     };
