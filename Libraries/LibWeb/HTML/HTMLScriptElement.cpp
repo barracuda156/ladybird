@@ -120,6 +120,11 @@ void HTMLScriptElement::begin_delaying_document_load_event(DOM::Document& docume
 // https://html.spec.whatwg.org/multipage/scripting.html#execute-the-script-block
 void HTMLScriptElement::execute_script()
 {
+    // AD-HOC: Step 2 below, checked before waiting too: a script adopted into another document (for example a
+    //         freshly created one) must return, not wait for that document to become ready to run scripts.
+    if (m_preparation_time_document.ptr() != &this->document())
+        return;
+
     // https://html.spec.whatwg.org/multipage/document-lifecycle.html#read-html
     // Before any script execution occurs, the user agent must wait for scripts may run for the newly-created document to be true for document.
     if (!m_document->ready_to_run_scripts())

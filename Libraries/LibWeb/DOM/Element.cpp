@@ -1579,6 +1579,11 @@ void Element::removed_from(Node* old_parent, Node& old_root)
 {
     Base::removed_from(old_parent, old_root);
 
+    // https://html.spec.whatwg.org/multipage/dom.html#render-blocking-mechanism
+    // Whenever a render-blocking element el becomes browsing-context disconnected, unblock rendering on el.
+    if (old_root.is_connected() && document().is_render_blocking_element(*this))
+        unblock_rendering();
+
     if (m_id.has_value() && is<ShadowRoot>(old_root))
         static_cast<ShadowRoot&>(old_root).element_by_id().remove(*m_id, *this);
 
