@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/CharacterTypes.h>
 #include <AK/Error.h>
 #include <AK/GenericLexer.h>
 #include <AK/Optional.h>
@@ -14,8 +15,6 @@
 #include <AK/Types.h>
 #include <AK/Vector.h>
 #include <LibJS/Runtime/Date.h>
-
-#include <cctype> // Not included by default on macOS.
 
 // Parse simplified ISO8601 and non-standard date formats to milliseconds
 // from epoch (double). Synopsis:
@@ -109,13 +108,13 @@ private:
 
         auto result = std::make_pair(T(0), size_t(0));
         for (result.second = 0; result.second < MaxLength; ++result.second) {
-            if (is_eof() || !next_is(isdigit))
+            if (is_eof() || !next_is(is_ascii_digit))
                 return result;
             result.first *= 10;
             result.first += consume() - '0';
         }
 
-        ignore_while(isdigit);
+        ignore_while(is_ascii_digit);
         return result;
     }
 
@@ -321,7 +320,7 @@ private:
         case '(':
             ignore_until(')'); // Consume time zone name (Anything in brackets).
             ignore();
-            ignore_while(isspace);
+            ignore_while(is_ascii_space);
             return true;
         }
 
@@ -331,7 +330,7 @@ private:
     {
         VERIFY(m_hours.has_value());
 
-        consume_while(isspace);
+        consume_while(is_ascii_space);
 
         if (consume_specific("AM"sv)) {
             if (!separator())
@@ -560,7 +559,7 @@ private:
 
         m_timezone_utc = true;
 
-        bool space = consume_while(isspace).length() > 0;
+        bool space = consume_while(is_ascii_space).length() > 0;
         switch (peek()) {
         case '+':
         case '-':
@@ -592,14 +591,14 @@ private:
             if (str[i] != peek(i))
                 return false;
 
-        ignore_while(isalpha); // ... which can followed by anything. Just like Firefox and Chrome.
+        ignore_while(is_ascii_alpha); // ... which can followed by anything. Just like Firefox and Chrome.
         m_month = month;
 
         return separator(); // Must end with a separator.
     }
     ALWAYS_INLINE bool word() // Alphanumeric strings that are not date "keywords".
     {
-        std::ignore = consume_while(isalpha);
+        std::ignore = consume_while(is_ascii_alpha);
         // Just like Firefox and Chrome:
         // - Ignore junk (bare words) at the beginning (before time or a date fragment has been read).
         // - Fail if a word is read later in the date string (exception: final time zone name, in brackets).
@@ -932,6 +931,8 @@ private:
 public:
     ALWAYS_INLINE static double parse(StringView const& str)
     {
+        if (!str.is_ascii())
+            return NAN;
         return DateParser(str).parse().value_or(NAN);
     }
 };
