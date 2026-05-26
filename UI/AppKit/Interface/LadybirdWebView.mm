@@ -957,6 +957,7 @@ struct HideCursor {
     if (!m_metal_device) {
         CALayer* layer = [LadybirdWebViewContentLayer layer];
         layer.contentsGravity = kCAGravityTopLeft;
+        layer.backgroundColor = [Ladybird::gfx_color_to_ns_color(m_web_view_bridge->page_background_color()) CGColor];
         return layer;
     }
 
@@ -966,6 +967,7 @@ struct HideCursor {
     layer.framebufferOnly = YES;
     layer.displaySyncEnabled = YES;
     layer.contentsGravity = kCAGravityTopLeft;
+    layer.backgroundColor = [Ladybird::gfx_color_to_ns_color(m_web_view_bridge->page_background_color()) CGColor];
     return layer;
 }
 

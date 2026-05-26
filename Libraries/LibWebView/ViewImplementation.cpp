@@ -12,6 +12,7 @@
 #include <LibCore/Timer.h>
 #include <LibGfx/ImageFormats/PNGWriter.h>
 #include <LibURL/Parser.h>
+#include <LibWeb/CSS/SystemColor.h>
 #include <LibWeb/Crypto/Crypto.h>
 #include <LibWeb/Infra/Strings.h>
 #include <LibWebView/Application.h>
@@ -280,6 +281,13 @@ void ViewImplementation::did_finish_handling_input_event(Badge<WebContentClient>
 
 void ViewImplementation::set_preferred_color_scheme(Web::CSS::PreferredColorScheme color_scheme)
 {
+    if (color_scheme == Web::CSS::PreferredColorScheme::Dark)
+        set_page_background_color(Web::CSS::SystemColor::canvas(Web::CSS::PreferredColorScheme::Dark));
+    else if (color_scheme == Web::CSS::PreferredColorScheme::Light)
+        set_page_background_color(Web::CSS::SystemColor::canvas(Web::CSS::PreferredColorScheme::Light));
+    else
+        set_page_background_color(m_system_canvas_background_color);
+
     client().async_set_preferred_color_scheme(page_id(), color_scheme);
 }
 
@@ -599,9 +607,21 @@ void ViewImplementation::did_update_navigation_buttons_state(Badge<WebContentCli
 
 void ViewImplementation::did_change_background_color(Badge<WebContentClient>, Gfx::Color color)
 {
+    set_page_background_color(color);
+}
+
+void ViewImplementation::set_page_background_color_to_system_canvas(bool dark)
+{
+    auto color_scheme = dark ? Web::CSS::PreferredColorScheme::Dark : Web::CSS::PreferredColorScheme::Light;
+    m_system_canvas_background_color = Web::CSS::SystemColor::canvas(color_scheme);
+    set_page_background_color(m_system_canvas_background_color);
+}
+
+void ViewImplementation::set_page_background_color(Gfx::Color color)
+{
     m_page_background_color = color;
     if (on_page_background_color_change)
-        on_page_background_color_change(color);
+        on_page_background_color_change(m_page_background_color);
 }
 
 void ViewImplementation::did_allocate_backing_stores(Badge<WebContentClient>, i32 front_bitmap_id, Gfx::ShareableBitmap const& front_bitmap, i32 back_bitmap_id, Gfx::ShareableBitmap const& back_bitmap)

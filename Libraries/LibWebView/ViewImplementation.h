@@ -296,6 +296,8 @@ protected:
     virtual void update_zoom();
 
     void handle_resize();
+    void set_page_background_color_to_system_canvas(bool dark);
+    void set_page_background_color(Gfx::Color);
 
     enum class CreateNewClient {
         No,
@@ -391,6 +393,7 @@ protected:
     RefPtr<Gfx::Bitmap const> m_backup_bitmap;
     Web::DevicePixelSize m_backup_bitmap_size;
     Gfx::Color m_page_background_color { 255, 255, 255 };
+    Gfx::Color m_system_canvas_background_color { 255, 255, 255 };
 
     size_t m_crash_count = 0;
     RefPtr<Core::Timer> m_repeated_crash_timer;
