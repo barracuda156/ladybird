@@ -270,6 +270,12 @@ void BrowserWindow::setup_keyboard_shortcuts()
 void BrowserWindow::on_tab_switched()
 {
     auto* tab = current_tab();
+    for (auto& existing_tab : m_tabs) {
+        existing_tab->view().set_system_visibility_state(existing_tab.ptr() == tab
+                ? Web::HTML::VisibilityState::Visible
+                : Web::HTML::VisibilityState::Hidden);
+    }
+
     if (!tab)
         return;
 
@@ -300,6 +306,7 @@ Tab& BrowserWindow::create_new_tab(URL::URL const& url, Web::HTML::ActivateTab a
     auto* page = adw_tab_view_append(m_tab_view, tab_ref.widget());
     adw_tab_page_set_title(page, "New Tab");
     tab_ref.set_tab_page(page);
+    m_tabs.append(move(tab));
 
     if (activate_tab == Web::HTML::ActivateTab::Yes) {
         adw_tab_view_set_selected_page(m_tab_view, page);
@@ -311,7 +318,6 @@ Tab& BrowserWindow::create_new_tab(URL::URL const& url, Web::HTML::ActivateTab a
         }
     }
 
-    m_tabs.append(move(tab));
     return tab_ref;
 }
 
@@ -323,11 +329,11 @@ Tab& BrowserWindow::create_child_tab(Web::HTML::ActivateTab activate_tab, Tab& p
     auto* page = adw_tab_view_append(m_tab_view, tab_ref.widget());
     adw_tab_page_set_title(page, "New Tab");
     tab_ref.set_tab_page(page);
+    m_tabs.append(move(tab));
 
     if (activate_tab == Web::HTML::ActivateTab::Yes)
         adw_tab_view_set_selected_page(m_tab_view, page);
 
-    m_tabs.append(move(tab));
     return tab_ref;
 }
 
