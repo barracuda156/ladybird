@@ -2258,6 +2258,7 @@ VALIDATE_INSTRUCTION(throw_)
     TRY(validate(tag_index));
 
     auto tag_type = m_context.tags[tag_index.value()];
+    TRY(validate(tag_type.type()));
     auto& type = m_context.types[tag_type.type().value()];
 
     if (!type.is_function())
@@ -2318,6 +2319,7 @@ VALIDATE_INSTRUCTION(try_table)
         if (auto tag = catch_.matching_tag_index(); tag.has_value()) {
             TRY(validate(tag.value()));
             auto tag_type = m_context.tags[tag->value()];
+            TRY(validate(tag_type.type()));
             auto& type = m_context.types[tag_type.type().value()];
 
             if (!type.is_function())
