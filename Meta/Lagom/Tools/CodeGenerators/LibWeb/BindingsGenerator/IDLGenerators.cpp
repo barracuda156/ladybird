@@ -3456,17 +3456,6 @@ static void collect_attribute_values_of_an_inheritance_stack(SourceGenerator& fu
 )~~~");
         }
 
-        for (auto& constant : interface_in_chain.constants) {
-            auto constant_generator = function_generator.fork();
-            constant_generator.set("constant.name", constant.name);
-
-            generate_wrap_statement(constant_generator, constant.value, constant.type, interface_in_chain, ByteString::formatted("auto constant_{}_value =", constant.name));
-
-            constant_generator.append(R"~~~(
-    MUST(result->create_data_property("@constant.name@"_utf16_fly_string, constant_@constant.name@_value));
-)~~~");
-        }
-
         if (!window_exposed_only_members_generator.as_string_view().is_empty()) {
             auto window_only_property_declarations = function_generator.fork();
             window_only_property_declarations.set("defines", window_exposed_only_members_generator.as_string_view());
