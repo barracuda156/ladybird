@@ -89,7 +89,7 @@ void ReadLoopReadRequest::on_chunk(JS::Value chunk)
     }
 
     auto const& array = static_cast<JS::Uint8Array const&>(chunk.as_object());
-    auto const& buffer = array.viewed_array_buffer()->buffer();
+    auto buffer = array.data();
 
     // 2. Append the bytes represented by chunk to bytes.
     m_bytes.append(buffer);
