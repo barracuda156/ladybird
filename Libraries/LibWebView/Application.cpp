@@ -35,6 +35,12 @@ namespace WebView {
 
 Application* Application::s_the = nullptr;
 
+// LibURL/URL.h has no function for this URL: most of the engine includes that header, and only this file asks.
+static URL::URL about_history()
+{
+    return URL::URL::about("history"_string);
+}
+
 struct ApplicationSettingsObserver final : public SettingsObserver {
     virtual void show_bookmarks_bar_changed() override
     {
@@ -1042,6 +1048,11 @@ void Application::initialize_actions()
     m_bookmark_folder_context_menu->add_separator();
     m_bookmark_folder_context_menu->add_action(add_bookmark_action);
     m_bookmark_folder_context_menu->add_action(add_bookmark_folder_action);
+
+    m_history_menu = Menu::create("History"sv);
+    m_history_menu->add_action(Action::create("View History"sv, ActionID::ViewHistory, [this]() {
+        open_url_in_new_tab(about_history(), Web::HTML::ActivateTab::Yes);
+    }));
 
     m_inspect_menu = Menu::create("Inspect"sv);
 

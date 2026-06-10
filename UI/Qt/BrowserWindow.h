@@ -166,6 +166,7 @@ private:
 
     QMenu* m_hamburger_menu { nullptr };
     QMenu* m_bookmarks_menu { nullptr };
+    QMenu* m_history_menu { nullptr };
 
     QAction* m_new_tab_action { nullptr };
     QAction* m_new_window_action { nullptr };
