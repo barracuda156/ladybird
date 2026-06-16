@@ -1051,7 +1051,8 @@ void Application::initialize_actions()
 
     m_history_menu = Menu::create("History"sv);
     m_history_menu->add_action(Action::create("View History"sv, ActionID::ViewHistory, [this]() {
-        open_url_in_new_tab(about_history(), Web::HTML::ActivateTab::Yes);
+        if (!activate_tab_with_url(about_history()))
+            open_url_in_new_tab(about_history(), Web::HTML::ActivateTab::Yes);
     }));
 
     m_inspect_menu = Menu::create("Inspect"sv);
