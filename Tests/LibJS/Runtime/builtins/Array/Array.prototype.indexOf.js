@@ -23,3 +23,60 @@ test("basic functionality", () => {
     expect([].indexOf()).toBe(-1);
     expect([undefined].indexOf()).toBe(0);
 });
+
+test("fromIndex side effects can mutate array length", () => {
+    var array = ["hello", "friends"];
+    var fromIndex = {
+        valueOf() {
+            array.pop();
+            return 0;
+        },
+    };
+
+    expect(array.indexOf("friends", fromIndex)).toBe(-1);
+});
+
+test("fromIndex side effects can grow array past captured length", () => {
+    var array = ["hello", "friends"];
+    var fromIndex = {
+        valueOf() {
+            array.push("serenity");
+            return 0;
+        },
+    };
+
+    expect(array.indexOf("serenity", fromIndex)).toBe(-1);
+});
+
+test("fromIndex side effects can mutate packed array elements", () => {
+    var array = ["hello", "friends"];
+    var fromIndex = {
+        valueOf() {
+            array[1] = "serenity";
+            return 0;
+        },
+    };
+
+    expect(array.indexOf("serenity", fromIndex)).toBe(1);
+});
+
+test("fromIndex side effects can make prototype indexed properties observable", () => {
+    var array = ["hello", "friends"];
+    var fromIndex = {
+        valueOf() {
+            delete array[1];
+            Array.prototype[1] = "serenity";
+            return 0;
+        },
+    };
+
+    try {
+        expect(array.indexOf("serenity", fromIndex)).toBe(1);
+    } finally {
+        delete Array.prototype[1];
+    }
+});
+
+test("out-of-range fromIndex is not converted to an integer type", () => {
+    expect([1].indexOf(1, 1e300)).toBe(-1);
+});
