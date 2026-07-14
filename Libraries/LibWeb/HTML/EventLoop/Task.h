@@ -7,6 +7,8 @@
 #pragma once
 
 #include <AK/DistinctNumeric.h>
+#include <AK/IntrusiveList.h>
+#include <AK/RefCounted.h>
 #include <LibGC/CellAllocator.h>
 #include <LibJS/Heap/Cell.h>
 #include <LibWeb/Export.h>
@@ -115,6 +117,11 @@ private:
     Source m_source { Source::Unspecified };
     GC::Ref<GC::Function<void()>> m_steps;
     GC::Ptr<DOM::Document const> m_document;
+
+    IntrusiveListNode<Task> m_task_queue_node;
+
+public:
+    using Queue = IntrusiveList<&Task::m_task_queue_node>;
 };
 
 struct WEB_API UniqueTaskSource {
