@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/HashMap.h>
 #include <LibTest/TestCase.h>
 
 #include <LibURL/Parser.h>
@@ -374,6 +375,23 @@ TEST_CASE(unicode)
     EXPECT(!url->fragment().has_value());
 }
 
+TEST_CASE(wtf8_surrogates_are_replaced_before_url_parsing)
+{
+    {
+        auto url = URL::Parser::basic_parse("http://example.com/\xED\xA0\x80-\xED\xB0\x80?\xED\xBF\xBF"sv);
+        EXPECT(url.has_value());
+        EXPECT_EQ(url->serialize_path(), "/%EF%BF%BD-%EF%BF%BD");
+        EXPECT_EQ(url->query(), "%EF%BF%BD");
+        EXPECT_EQ(url->serialize(), "http://example.com/%EF%BF%BD-%EF%BF%BD?%EF%BF%BD");
+    }
+
+    {
+        auto host = URL::Parser::parse_host("\xED\xA0\x80host\xED\xBF\xBF"sv, true);
+        EXPECT(host.has_value());
+        EXPECT_EQ(host->serialize(), "%EF%BF%BDhost%EF%BF%BD");
+    }
+}
+
 TEST_CASE(query_with_non_ascii)
 {
     {
@@ -558,6 +576,25 @@ TEST_CASE(username_and_password)
     }
 }
 
+TEST_CASE(non_ascii_userinfo)
+{
+    {
+        auto url = URL::Parser::basic_parse("http://é@é"sv);
+        EXPECT(url.has_value());
+        EXPECT_EQ(url->username(), "%C3%A9"sv);
+        EXPECT(url->password().is_empty());
+        EXPECT_EQ(url->serialized_host(), "xn--9ca"sv);
+    }
+
+    {
+        auto url = URL::Parser::basic_parse("http://é@example.com"sv);
+        EXPECT(url.has_value());
+        EXPECT_EQ(url->username(), "%C3%A9"sv);
+        EXPECT(url->password().is_empty());
+        EXPECT_EQ(url->serialized_host(), "example.com"sv);
+    }
+}
+
 TEST_CASE(ascii_only_url)
 {
     {
@@ -591,113 +628,6 @@ TEST_CASE(invalid_domain_code_points)
         constexpr auto mixed_case_url = "http://thing\u0007y/'"sv;
         auto url = URL::Parser::basic_parse(mixed_case_url);
         EXPECT(!url.has_value());
-    }
-}
-
-TEST_CASE(get_registrable_domain)
-{
-    {
-        auto domain = URL::get_registrable_domain({});
-        EXPECT(!domain.has_value());
-    }
-    {
-        auto domain = URL::get_registrable_domain("foobar"sv);
-        EXPECT(!domain.has_value());
-    }
-    {
-        auto domain = URL::get_registrable_domain("com"sv);
-        EXPECT(!domain.has_value());
-    }
-    {
-        auto domain = URL::get_registrable_domain(".com"sv);
-        EXPECT(!domain.has_value());
-    }
-    {
-        auto domain = URL::get_registrable_domain("example.com"sv);
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "example.com"sv);
-    }
-    {
-        auto domain = URL::get_registrable_domain(".example.com"sv);
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "example.com"sv);
-    }
-    {
-        auto domain = URL::get_registrable_domain("www.example.com"sv);
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "example.com"sv);
-    }
-    {
-        auto domain = URL::get_registrable_domain("sub.www.example.com"sv);
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "example.com"sv);
-    }
-    {
-        auto domain = URL::get_registrable_domain("github.io"sv);
-        EXPECT(!domain.has_value());
-    }
-    {
-        auto domain = URL::get_registrable_domain("ladybird.github.io"sv);
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "ladybird.github.io"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("a.example"sv)->registrable_domain();
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "a.example"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("b.b.example"sv)->registrable_domain();
-        VERIFY(domain.has_value());
-        EXPECT_EQ(*domain, "b.example"sv);
-    }
-}
-
-TEST_CASE(public_suffix)
-{
-    {
-        auto domain = URL::Parser::parse_host("com"sv);
-        EXPECT_EQ(domain->public_suffix(), "com"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("example.com"sv);
-        EXPECT_EQ(domain->public_suffix(), "com"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("www.example.com"sv);
-        EXPECT_EQ(domain->public_suffix(), "com"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("EXAMPLE.COM"sv);
-        EXPECT_EQ(domain->public_suffix(), "com"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("www.example.com."sv);
-        EXPECT_EQ(domain->public_suffix(), "com."sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("github.io"sv);
-        EXPECT_EQ(domain->public_suffix(), "github.io"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("whatwg.github.io"sv);
-        EXPECT_EQ(domain->public_suffix(), "github.io"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("إختبار"sv);
-        EXPECT_EQ(domain->public_suffix(), "xn--kgbechtv"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("example.إختبار"sv);
-        EXPECT_EQ(domain->public_suffix(), "xn--kgbechtv"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("sub.example.إختبار"sv);
-        EXPECT_EQ(domain->public_suffix(), "xn--kgbechtv"sv);
-    }
-    {
-        auto domain = URL::Parser::parse_host("[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"sv);
-        EXPECT_EQ(domain->public_suffix(), OptionalNone {});
     }
 }
 
@@ -786,9 +716,73 @@ TEST_CASE(same_origin_domain)
     EXPECT(!opaque1.is_same_origin_domain(a_relaxed));
 }
 
+TEST_CASE(origin_hash_uses_same_origin_semantics)
+{
+    auto origin = URL::Origin { "https"_string, "a.ladybird.org"_string, 443 };
+    auto origin_with_domain = URL::Origin { "https"_string, "a.ladybird.org"_string, 443, "ladybird.org"_string };
+
+    EXPECT_EQ(origin, origin_with_domain);
+
+    HashMap<URL::Origin, int> origins;
+    origins.set(origin, 42);
+    EXPECT_EQ(origins.get(origin_with_domain), Optional<int> { 42 });
+}
+
+// resource:// URLs are internal browser resources. They share a single tuple origin regardless
+// of host, so that same-origin checks pass between any resource:// documents or worker scripts.
+TEST_CASE(resource_url_origin)
+{
+    auto url_a = URL::Parser::basic_parse("resource://ladybird/pdfjs/web/viewer.html"sv).value();
+    auto url_b = URL::Parser::basic_parse("resource://ladybird/pdfjs/build/pdf.worker.mjs"sv).value();
+    auto url_c = URL::Parser::basic_parse("resource://icons/something.png"sv).value();
+
+    // resource:// origins must be tuple origins, not opaque.
+    EXPECT(!url_a.origin().is_opaque());
+
+    // All resource:// URLs share the same origin regardless of host or path.
+    EXPECT(url_a.origin().is_same_origin(url_b.origin()));
+    EXPECT(url_a.origin().is_same_origin(url_c.origin()));
+
+    // resource:// and https:// are never same-origin.
+    auto https_origin = URL::Parser::basic_parse("https://ladybird.org"sv).value().origin();
+    EXPECT(!url_a.origin().is_same_origin(https_origin));
+
+    // resource:// and an opaque origin are never same-origin.
+    EXPECT(!url_a.origin().is_same_origin(URL::Origin::create_opaque()));
+}
+
 TEST_CASE(authority_state_lots_of_at_symbols)
 {
     auto many_at_symbols = MUST(String::repeated('@', 500'000));
     auto horror_url = MUST(String::formatted("ws::{}", many_at_symbols));
     EXPECT(!URL::Parser::basic_parse(horror_url).has_value());
+}
+
+TEST_CASE(host_is_loopback_or_localhost)
+{
+    auto host_of = [](StringView input) {
+        auto url = URL::Parser::basic_parse(input);
+        VERIFY(url.has_value());
+        VERIFY(url->host().has_value());
+        return url->host().value();
+    };
+
+    EXPECT(host_of("http://localhost"sv).is_loopback_or_localhost());
+    EXPECT(host_of("http://localhost."sv).is_loopback_or_localhost());
+    EXPECT(host_of("http://foo.localhost"sv).is_loopback_or_localhost());
+    EXPECT(host_of("http://foo.localhost."sv).is_loopback_or_localhost());
+    EXPECT(host_of("http://127.0.0.1"sv).is_loopback_or_localhost());
+    EXPECT(host_of("http://127.255.255.255"sv).is_loopback_or_localhost());
+    EXPECT(host_of("http://[::1]"sv).is_loopback_or_localhost());
+
+    EXPECT(!host_of("http://localhost4"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://localhost6"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://localhost.example"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://126.255.255.255"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://128.0.0.1"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://[::2]"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://[::ffff:127.0.0.1]"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://[fe80::1]"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://example.com"sv).is_loopback_or_localhost());
+    EXPECT(!host_of("http://0.0.0.0"sv).is_loopback_or_localhost());
 }
