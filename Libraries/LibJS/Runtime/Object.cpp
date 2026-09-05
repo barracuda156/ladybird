@@ -1012,6 +1012,10 @@ ThrowCompletionOr<Value> Object::internal_get(PropertyKey const& property_key, V
         // AD-HOC: Avoid a native stack overflow when walking a pathologically-deep prototype chain.
         if (vm.did_reach_stack_space_limit()) [[unlikely]]
             return vm.throw_completion<InternalError>(ErrorType::CallStackSizeExceeded);
+        // NB: An object whose own lookup can start answering for a name at any time cannot vouch for a
+        //     result found further up the prototype chain.
+        if (cacheable_metadata && !is_cacheable_for_inherited_property())
+            cacheable_metadata = nullptr;
         return parent->internal_get(property_key, receiver, cacheable_metadata, PropertyLookupPhase::PrototypeChain);
     }
 

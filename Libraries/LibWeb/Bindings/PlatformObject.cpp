@@ -203,6 +203,14 @@ WebIDL::ExceptionOr<void> PlatformObject::invoke_named_property_setter(FlyString
     return set_value_of_named_property(property_name.to_string(), value);
 }
 
+bool PlatformObject::is_cacheable_for_inherited_property() const
+{
+    if (!m_legacy_platform_object_flags.has_value())
+        return true;
+    return !(m_legacy_platform_object_flags->supports_named_properties
+        && m_legacy_platform_object_flags->has_legacy_override_built_ins_interface_extended_attribute);
+}
+
 // https://webidl.spec.whatwg.org/#legacy-platform-object-getownproperty
 JS::ThrowCompletionOr<Optional<JS::PropertyDescriptor>> PlatformObject::internal_get_own_property(JS::PropertyKey const& property_name) const
 {
