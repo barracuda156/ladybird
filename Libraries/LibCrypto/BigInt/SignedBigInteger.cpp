@@ -257,7 +257,7 @@ FLATTEN SignedDivisionResult SignedBigInteger::divided_by(UnsignedBigInteger con
     SignedBigInteger quotient;
     SignedBigInteger remainder;
     MP_MUST(mp_div(&m_mp, &divisor.m_mp, &quotient.m_mp, &remainder.m_mp));
-    return SignedDivisionResult { quotient, remainder };
+    return SignedDivisionResult { move(quotient), move(remainder) };
 }
 
 FLATTEN SignedBigInteger SignedBigInteger::bitwise_or(SignedBigInteger const& other) const
@@ -350,7 +350,7 @@ FLATTEN SignedDivisionResult SignedBigInteger::divided_by(SignedBigInteger const
     SignedBigInteger quotient;
     SignedBigInteger remainder;
     MP_MUST(mp_div(&m_mp, &divisor.m_mp, &quotient.m_mp, &remainder.m_mp));
-    return SignedDivisionResult { quotient, remainder };
+    return SignedDivisionResult { move(quotient), move(remainder) };
 }
 
 FLATTEN SignedBigInteger SignedBigInteger::pow(u32 exponent) const
