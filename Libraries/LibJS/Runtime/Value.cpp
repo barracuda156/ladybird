@@ -1942,7 +1942,7 @@ ThrowCompletionOr<Value> div(VM& vm, Value lhs, Value rhs)
             return vm.throw_completion<RangeError>(ErrorType::DivisionByZero);
         // 2. Let quotient be ℝ(x) / ℝ(y).
         // 3. Return the BigInt value that represents quotient rounded towards 0 to the next integer value.
-        return BigInt::create(vm, x.divided_by(y).quotient);
+        return BigInt::create(vm, x.quotient(y));
     }
 
     // 5. If Type(lnum) is different from Type(rnum), throw a TypeError exception.
@@ -1984,7 +1984,7 @@ ThrowCompletionOr<Value> mod(VM& vm, Value lhs, Value rhs)
         // 3. Let quotient be ℝ(n) / ℝ(d).
         // 4. Let q be the BigInt whose sign is the sign of quotient and whose magnitude is floor(abs(quotient)).
         // 5. Return n - (d × q).
-        return BigInt::create(vm, n.divided_by(d).remainder);
+        return BigInt::create(vm, n.remainder(d));
     }
 
     // 5. If Type(lnum) is different from Type(rnum), throw a TypeError exception.

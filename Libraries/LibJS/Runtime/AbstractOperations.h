@@ -325,7 +325,7 @@ auto modulo(T x, U y)
 auto modulo(Crypto::BigInteger auto const& x, Crypto::BigInteger auto const& y)
 {
     VERIFY(!y.is_zero());
-    auto result = x.divided_by(y).remainder;
+    auto result = x.remainder(y);
     if (result.is_negative())
         result = result.plus(y);
     return result;
@@ -349,7 +349,7 @@ auto remainder(T x, U y)
 auto remainder(Crypto::BigInteger auto const& x, Crypto::BigInteger auto const& y)
 {
     VERIFY(!y.is_zero());
-    return x.divided_by(y).remainder;
+    return x.remainder(y);
 }
 
 // 14.5.1.1 ToIntegerIfIntegral ( argument ), https://tc39.es/proposal-temporal/#sec-tointegerifintegral
