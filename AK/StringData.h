@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/AtomicRefCounted.h>
 #include <AK/Error.h>
 #include <AK/NonnullRefPtr.h>
 #include <AK/RefCounted.h>
@@ -19,7 +20,7 @@ class StringData;
 
 void did_destroy_fly_string_data(Badge<StringData>, StringData const&);
 
-class StringData final : public RefCounted<StringData> {
+class StringData final : public AtomicRefCounted<StringData> {
 public:
     static ErrorOr<NonnullRefPtr<StringData>> create_uninitialized(size_t byte_count, u8*& buffer)
     {

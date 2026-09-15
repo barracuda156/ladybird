@@ -10,6 +10,7 @@
 
 #include <AK/FlyString.h>
 #include <AK/Optional.h>
+#include <AK/RefCounted.h>
 #include <LibWeb/Export.h>
 
 namespace Web::DOM {
