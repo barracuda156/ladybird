@@ -823,9 +823,16 @@ WebIDL::ExceptionOr<Document*> Document::open(Optional<String> const&, Optional<
 
     // FIXME: 8. If document's browsing context is non-null and there is an existing attempt to navigate document's browsing context, then stop document loading given document.
 
-    // FIXME: 9. For each shadow-including inclusive descendant node of document, erase all event listeners and handlers given node.
+    // 9. For each shadow-including inclusive descendant node of document, erase all event listeners and handlers given node.
+    for_each_shadow_including_inclusive_descendant([](Node& node) {
+        node.erase_all_event_listeners_and_handlers();
+        return TraversalDecision::Continue;
+    });
 
-    // FIXME: 10. If document is the associated Document of document's relevant global object, then erase all event listeners and handlers given document's relevant global object.
+    // 10. If document is the associated Document of document's relevant global object, then erase all event listeners
+    //     and handlers given document's relevant global object.
+    if (auto* window = as_if<HTML::Window>(HTML::relevant_global_object(*this)); window && &window->associated_document() == this)
+        window->erase_all_event_listeners_and_handlers();
 
     // 11. Replace all with null within document, without firing any mutation events.
     replace_all(nullptr);
