@@ -267,6 +267,7 @@ ErrorOr<size_t> PNGLoadingContext::read_frames(png_structp png_ptr, png_infop in
         return frame_bitmap;
     };
 
+#ifdef PNG_APNG_SUPPORTED
     if (png_get_acTL(png_ptr, info_ptr, &frame_count, &loop_count)) {
         // acTL chunk present: This is an APNG.
         png_set_acTL(png_ptr, info_ptr, frame_count, loop_count);
@@ -356,7 +357,11 @@ ErrorOr<size_t> PNGLoadingContext::read_frames(png_structp png_ptr, png_infop in
             frame_descriptors.append({ move(frame_bitmap), 0 });
             frame_count = 1;
         }
-    } else {
+    } else
+#else
+    // A libpng without the APNG patch decodes every file as a single frame.
+#endif
+    {
         // This is a single-frame PNG.
         frame_count = 1;
         loop_count = 0;

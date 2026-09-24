@@ -130,7 +130,8 @@ check_c_source_compiles([=[
 unset(CMAKE_REQUIRED_LIBRARIES)
 
 if (NOT LIBPNG_HAS_APNG)
-    message(FATAL_ERROR "libpng does not support APNG, which is required by LibGfx.")
+    # Distributions rarely carry the APNG patch; the loader then decodes animated PNGs as single frames.
+    message(WARNING "libpng was built without APNG support; animated PNGs will show their first frame only")
 endif()
 
 if (NOT ANDROID)
