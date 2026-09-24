@@ -80,10 +80,12 @@ void platform_init(Optional<ByteString> ladybird_binary_path)
         }
         auto app_dir = MUST(application_directory());
 #ifdef AK_OS_MACOS
-        return LexicalPath(app_dir).parent().append("Resources"sv).string();
-#else
-        return find_prefix(LexicalPath(app_dir)).append("share/Lagom"sv).string();
+        // Inside an application bundle the resources sit next to the executable directory. A plain
+        // (non-bundle) install, e.g. from a package manager, is laid out like any other Unix.
+        if (LexicalPath(app_dir).basename() == "MacOS"sv)
+            return LexicalPath(app_dir).parent().append("Resources"sv).string();
 #endif
+        return find_prefix(LexicalPath(app_dir)).append("share/Lagom"sv).string();
     }();
 
     Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(MUST(String::from_byte_string(s_ladybird_resource_root))));
@@ -112,7 +114,9 @@ ErrorOr<Vector<ByteString>> get_paths_for_helper_process(StringView process_name
     auto application_path = TRY(application_directory());
     Vector<ByteString> paths;
 
-#if !defined(AK_OS_MACOS) && !defined(AK_OS_WINDOWS)
+#if !defined(AK_OS_WINDOWS)
+    // Unix-style installs keep the helpers in libexec (or bin); a macOS bundle has them next to the
+    // browser binary and is covered by the application-directory entry below.
     auto prefix = find_prefix(LexicalPath(application_path));
     TRY(paths.try_append(LexicalPath::join(prefix.string(), libexec_path, process_name).string()));
     TRY(paths.try_append(LexicalPath::join(prefix.string(), "bin"sv, process_name).string()));

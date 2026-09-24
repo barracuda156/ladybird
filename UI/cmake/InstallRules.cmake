@@ -43,7 +43,9 @@ list(REMOVE_DUPLICATES all_required_lagom_libraries)
 # Remove ladybird shlib if it exists
 list(REMOVE_ITEM all_required_lagom_libraries ladybird)
 
-if (APPLE)
+get_target_property(ladybird_is_bundle ladybird MACOSX_BUNDLE)
+
+if (APPLE AND ladybird_is_bundle)
     # Fixup the app bundle and copy:
     #   - Libraries from lib/ to Ladybird.app/Contents/lib
     # Remove the symlink we created at build time for the lib directory first
@@ -105,8 +107,8 @@ install(
     COMPONENT ladybird_Development
 )
 
-if (NOT APPLE)
-    # On macOS the resources are handled via the MACOSX_PACKAGE_LOCATION property on each resource file
+if (NOT APPLE OR NOT ladybird_is_bundle)
+    # In a macOS application bundle the resources are handled via the MACOSX_PACKAGE_LOCATION property on each resource file
     install_ladybird_resources("${CMAKE_INSTALL_DATADIR}/Lagom" ladybird_Runtime)
 endif()
 

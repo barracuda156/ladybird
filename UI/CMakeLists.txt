@@ -47,7 +47,9 @@ function(create_ladybird_bundle target_name)
 endfunction()
 
 # Select UI Framework
-if (ENABLE_QT)
+if (ENABLE_HEADLESS_UI)
+   add_subdirectory(Headless)
+elseif (ENABLE_QT)
    add_subdirectory(Qt)
 elseif (APPLE)
    add_subdirectory(AppKit)
@@ -96,7 +98,8 @@ add_custom_target(run
     VERBATIM
 )
 
-if (APPLE)
+get_target_property(ladybird_is_bundle ladybird MACOSX_BUNDLE)
+if (APPLE AND ladybird_is_bundle)
     add_custom_target(debug-ladybird
         COMMAND "${CMAKE_COMMAND}" -E env "LADYBIRD_SOURCE_DIR=${LADYBIRD_SOURCE_DIR}" lldb "$<TARGET_BUNDLE_DIR:ladybird>"
         USES_TERMINAL

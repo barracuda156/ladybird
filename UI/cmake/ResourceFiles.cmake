@@ -109,7 +109,10 @@ function(copy_resource_set subdir)
     cmake_parse_arguments(PARSE_ARGV 1 "COPY" "" "TARGET;DESTINATION" "RESOURCES")
     set(inputs ${COPY_RESOURCES})
 
-    if (APPLE)
+    # Only application bundles carry their resources inside the bundle; a plain executable on macOS
+    # uses the same share/Lagom layout as the other Unix platforms.
+    get_target_property(target_is_bundle ${COPY_TARGET} MACOSX_BUNDLE)
+    if (APPLE AND target_is_bundle)
         target_sources(${COPY_TARGET} PRIVATE ${inputs})
         set_source_files_properties(${inputs} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/${subdir}")
     else()
