@@ -19,7 +19,10 @@
 #include <core/SkPixmap.h>
 #include <errno.h>
 
-#ifdef AK_OS_MACOS
+// vImage{Premultiply,Unpremultiply}Data_BGRA8888 are missing from the Accelerate of Mac OS X 10.5 and 10.6;
+// legacy builds use the Skia path below instead.
+#if defined(AK_OS_MACOS) && !defined(LADYBIRD_LEGACY_MACOS)
+#    define AK_HAS_VIMAGE_BGRA_PREMULTIPLY
 #    include <Accelerate/Accelerate.h>
 #endif
 
@@ -321,7 +324,7 @@ void Bitmap::set_alpha_type_destructive(AlphaType alpha_type)
         return;
     }
 
-#ifdef AK_OS_MACOS
+#ifdef AK_HAS_VIMAGE_BGRA_PREMULTIPLY
     vImage_Buffer buf { .data = m_data, .height = vImagePixelCount(height()), .width = vImagePixelCount(width()), .rowBytes = pitch() };
     vImage_Error err;
     if (m_alpha_type == AlphaType::Unpremultiplied) {
