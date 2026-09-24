@@ -145,6 +145,7 @@ struct NumericLimits<long double> {
 
 template<>
 struct NumericLimits<f16> {
+#ifdef __FLT16_MANT_DIG__
     static constexpr f16 lowest() { return -__FLT16_MAX__; }
     static constexpr f16 min_normal() { return __FLT16_MIN__; }
     static constexpr f16 min_denormal() { return __FLT16_DENORM_MIN__; }
@@ -152,6 +153,15 @@ struct NumericLimits<f16> {
     static constexpr f16 epsilon() { return __FLT16_EPSILON__; }
     static constexpr bool is_signed() { return true; }
     static constexpr size_t digits() { return __FLT16_MANT_DIG__; }
+#else
+    static constexpr f16 lowest() { return f16(-65504.0); }
+    static constexpr f16 min_normal() { return f16(6.103515625e-05); }
+    static constexpr f16 min_denormal() { return f16(5.9604644775390625e-08); }
+    static constexpr f16 max() { return f16(65504.0); }
+    static constexpr f16 epsilon() { return f16(0.0009765625); }
+    static constexpr bool is_signed() { return true; }
+    static constexpr size_t digits() { return 11; }
+#endif
 };
 
 }
