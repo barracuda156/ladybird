@@ -108,8 +108,15 @@ protected:
     union {
         double as_double;
         struct {
+            // Bit-fields are allocated from the most significant bit on big-endian targets, so the
+            // declaration order has to follow the byte order to keep `tag` in the top 16 bits.
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+            u64 tag : 16;
+            u64 payload : 48;
+#else
             u64 payload : 48;
             u64 tag : 16;
+#endif
         };
         u64 encoded;
     } m_value { .encoded = 0 };
