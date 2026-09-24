@@ -10,7 +10,8 @@
 #include <stdint.h>
 
 extern "C" {
-#if defined(AK_OS_WINDOWS)
+// Must match tommath.h, which only picks 64-bit digits on 64-bit non-Windows targets.
+#if defined(AK_OS_WINDOWS) || defined(AK_ARCH_32_BIT)
 typedef uint32_t mp_digit;
 #else
 typedef uint64_t mp_digit;
