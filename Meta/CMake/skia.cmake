@@ -36,7 +36,7 @@ else()
       endif()
     endforeach()
 
-    pkg_check_modules(skia skia=${SKIA_REQUIRED_VERSION} REQUIRED IMPORTED_TARGET skia)
+    pkg_check_modules(skia skia>=${SKIA_REQUIRED_VERSION} REQUIRED IMPORTED_TARGET skia)
     set(SKIA_TARGET PkgConfig::skia)
     set_property(TARGET PkgConfig::skia APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS "SKCMS_DLL")
 endif()

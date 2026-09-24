@@ -32,9 +32,14 @@ set(SOURCES
 
 ladybird_lib(LibCrypto crypto)
 
+# pkg-config only supplies hints: some packaged libtommath.pc files carry unexpanded paths, which
+# an imported pkg-config target would reject at generate time.
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(libtommath REQUIRED IMPORTED_TARGET libtommath)
-target_link_libraries(LibCrypto PRIVATE PkgConfig::libtommath)
+pkg_check_modules(libtommath QUIET libtommath)
+find_path(LIBTOMMATH_INCLUDE_DIR NAMES tommath.h HINTS ${libtommath_INCLUDE_DIRS} ${libtommath_INCLUDEDIR} PATH_SUFFIXES libtommath REQUIRED)
+find_library(LIBTOMMATH_LIBRARY NAMES tommath HINTS ${libtommath_LIBRARY_DIRS} ${libtommath_LIBDIR} REQUIRED)
+target_include_directories(LibCrypto SYSTEM PRIVATE "${LIBTOMMATH_INCLUDE_DIR}")
+target_link_libraries(LibCrypto PRIVATE "${LIBTOMMATH_LIBRARY}")
 
 find_package(OpenSSL REQUIRED)
 target_link_libraries(LibCrypto PUBLIC OpenSSL::Crypto)
