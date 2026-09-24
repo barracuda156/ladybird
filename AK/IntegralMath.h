@@ -6,8 +6,10 @@
 
 #pragma once
 
+#include <AK/Assertions.h>
 #include <AK/BuiltinWrappers.h>
 #include <AK/Concepts.h>
+#include <AK/Platform.h>
 #include <AK/Types.h>
 
 namespace AK {
@@ -140,6 +142,92 @@ template<Signed T>
 constexpr T lcm(T x, T y)
 {
     return lcm(static_cast<MakeUnsigned<T>>(abs(x)), static_cast<MakeUnsigned<T>>(abs(y)));
+}
+
+#ifndef __SIZEOF_INT128__
+namespace Detail {
+
+struct WideProduct {
+    u64 high { 0 };
+    u64 low { 0 };
+};
+
+// The 128-bit product of two 64-bit numbers, from the four products of their 32-bit halves.
+constexpr WideProduct wide_multiply(u64 multiplicand, u64 multiplier)
+{
+    u64 const multiplicand_low = multiplicand & 0xffff'ffff;
+    u64 const multiplicand_high = multiplicand >> 32;
+    u64 const multiplier_low = multiplier & 0xffff'ffff;
+    u64 const multiplier_high = multiplier >> 32;
+
+    u64 const low_low = multiplicand_low * multiplier_low;
+    u64 const low_high = multiplicand_low * multiplier_high;
+    u64 const high_low = multiplicand_high * multiplier_low;
+    u64 const high_high = multiplicand_high * multiplier_high;
+
+    // Three numbers below 2^32 each, so this cannot overflow.
+    u64 const middle = (low_low >> 32) + (low_high & 0xffff'ffff) + (high_low & 0xffff'ffff);
+
+    return {
+        .high = high_high + (low_high >> 32) + (high_low >> 32) + (middle >> 32),
+        .low = (middle << 32) | (low_low & 0xffff'ffff),
+    };
+}
+
+// The quotient of a 128-bit dividend whose upper half is below the divisor, so that the quotient fits into 64 bits.
+constexpr u64 wide_divide(WideProduct dividend, u64 divisor)
+{
+    // Restoring division, one bit of the quotient per step. The remainder is below the divisor before each step,
+    // so it has up to 65 bits after the shift: the bit that leaves the u64 is kept in carry.
+    u64 remainder = dividend.high;
+    u64 quotient = 0;
+    for (int bit = 63; bit >= 0; --bit) {
+        bool const carry = (remainder >> 63) != 0;
+        remainder = (remainder << 1) | ((dividend.low >> bit) & 1);
+        quotient <<= 1;
+        if (carry || remainder >= divisor) {
+            remainder -= divisor;
+            quotient |= 1;
+        }
+    }
+    return quotient;
+}
+
+}
+#endif
+
+constexpr bool multiply_divide_would_overflow(u64 multiplicand, u64 multiplier, u64 divisor)
+{
+    VERIFY(divisor != 0);
+#ifdef __SIZEOF_INT128__
+    auto product = static_cast<unsigned __int128>(multiplicand) * multiplier;
+    return static_cast<u64>(product >> 64) >= divisor;
+#else
+    return Detail::wide_multiply(multiplicand, multiplier).high >= divisor;
+#endif
+}
+
+constexpr u64 multiply_divide(u64 multiplicand, u64 multiplier, u64 divisor)
+{
+    VERIFY(!multiply_divide_would_overflow(multiplicand, multiplier, divisor));
+#ifdef __SIZEOF_INT128__
+    auto product = static_cast<unsigned __int128>(multiplicand) * multiplier;
+
+#    if ARCH(X86_64)
+    // x86-64 divides the whole product in one instruction, which faults unless the quotient fits in 64 bits.
+    if !consteval {
+        u64 quotient = 0;
+        u64 remainder = 0;
+        asm("divq %[divisor]"
+            : "=a"(quotient), "=d"(remainder)
+            : [divisor] "r"(divisor), "a"(static_cast<u64>(product)), "d"(static_cast<u64>(product >> 64)));
+        return quotient;
+    }
+#    endif
+    return static_cast<u64>(product / divisor);
+#else
+    return Detail::wide_divide(Detail::wide_multiply(multiplicand, multiplier), divisor);
+#endif
 }
 
 }
