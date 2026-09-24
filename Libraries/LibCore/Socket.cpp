@@ -481,7 +481,10 @@ ErrorOr<Bytes> LocalSocket::receive_message(AK::Bytes buffer, int flags, Vector<
 
 ErrorOr<pid_t> LocalSocket::peer_pid() const
 {
-#if defined(AK_OS_MACOS) || defined(AK_OS_IOS)
+#if (defined(AK_OS_MACOS) || defined(AK_OS_IOS)) && !defined(LOCAL_PEERPID)
+    // LOCAL_PEERPID and SOL_LOCAL arrived in Mac OS X 10.8; the older LOCAL_PEERCRED xucred has no pid.
+    return Error::from_errno(ENOTSUP);
+#elif defined(AK_OS_MACOS) || defined(AK_OS_IOS)
     pid_t pid;
     socklen_t pid_size = sizeof(pid);
 #elif defined(AK_OS_FREEBSD)
@@ -503,7 +506,7 @@ ErrorOr<pid_t> LocalSocket::peer_pid() const
     socklen_t creds_size = sizeof(creds);
 #endif
 
-#if defined(AK_OS_MACOS) || defined(AK_OS_IOS)
+#if (defined(AK_OS_MACOS) || defined(AK_OS_IOS)) && defined(LOCAL_PEERPID)
     TRY(System::getsockopt(m_helper.fd(), SOL_LOCAL, LOCAL_PEERPID, &pid, &pid_size));
     return pid;
 #elif defined(AK_OS_FREEBSD)
@@ -515,7 +518,7 @@ ErrorOr<pid_t> LocalSocket::peer_pid() const
 #elif defined(AK_OS_SOLARIS)
     TRY(System::getsockopt(m_helper.fd(), SOL_SOCKET, SO_RECVUCRED, &creds, &creds_size));
     return ucred_getpid(creds);
-#elif !defined(AK_OS_GNU_HURD)
+#elif !defined(AK_OS_GNU_HURD) && !defined(AK_OS_MACOS) && !defined(AK_OS_IOS)
     TRY(System::getsockopt(m_helper.fd(), SOL_SOCKET, SO_PEERCRED, &creds, &creds_size));
     return creds.pid;
 #endif
