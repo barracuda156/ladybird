@@ -58,7 +58,7 @@ FontPlugin::FontPlugin(bool is_layout_test_mode, Gfx::SystemFontProvider* font_p
     if (is_layout_test_mode) {
         m_symbol_font_names = { "Noto Emoji"_fly_string };
     } else {
-#ifdef AK_OS_MACOS
+#if defined(AK_OS_MACOS) && !defined(USE_FONTCONFIG)
         m_symbol_font_names = { "Apple Color Emoji"_fly_string, "Apple Symbols"_fly_string };
 #else
         m_symbol_font_names = { "Noto Color Emoji"_fly_string, "Noto Sans Symbols"_fly_string };

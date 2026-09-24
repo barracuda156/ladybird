@@ -34,3 +34,4 @@ endif()
 # Takes precedence over ENABLE_QT and the native frontends: a toolkit-free ladybird binary that only
 # offers the headless modes and WebDriver. Useful where no supported GUI toolkit is available.
 ladybird_option(ENABLE_HEADLESS_UI OFF CACHE BOOL "Build the toolkit-free ladybird frontend (headless modes and WebDriver only)")
+ladybird_option(LADYBIRD_LEGACY_MACOS OFF CACHE BOOL "Build for macOS without Metal/IOSurface (PowerPC or pre-10.11 SDKs): CPU painting, no WebGL, fontconfig fonts")

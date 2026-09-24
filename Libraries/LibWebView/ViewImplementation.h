@@ -157,7 +157,7 @@ public:
     void did_update_navigation_buttons_state(Badge<WebContentClient>, bool back_enabled, bool forward_enabled) const;
 
     void did_allocate_backing_stores(Badge<WebContentClient>, i32 front_bitmap_id, Gfx::ShareableBitmap const&, i32 back_bitmap_id, Gfx::ShareableBitmap const&);
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
     void did_allocate_iosurface_backing_stores(i32 front_bitmap_id, Core::MachPort&&, i32 back_bitmap_id, Core::MachPort&&);
 #endif
 
@@ -306,7 +306,7 @@ protected:
         i32 id { -1 };
         Web::DevicePixelSize last_painted_size;
         RefPtr<Gfx::Bitmap const> bitmap;
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
         void* iosurface_ref { nullptr };
 #endif
     };

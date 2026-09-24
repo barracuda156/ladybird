@@ -12,6 +12,11 @@
 #    include <AK/Windows.h>
 #endif
 
+// SDKs older than macOS 10.13 don't define MSG_NOSIGNAL; SO_NOSIGPIPE is used instead on those systems.
+#ifndef MSG_NOSIGNAL
+#    define MSG_NOSIGNAL 0
+#endif
+
 namespace RequestServer {
 
 RequestPipe::RequestPipe(int const reader_fd, int const writer_fd)

@@ -6,8 +6,8 @@
 
 #pragma once
 
-#if !defined(AK_OS_MACOS)
-static_assert(false, "This file must only be used for macOS");
+#ifndef AK_MACOS_HAS_METAL
+static_assert(false, "This file must only be used for macOS builds with Metal");
 #endif
 
 #include <AK/Forward.h>

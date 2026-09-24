@@ -68,6 +68,10 @@ elseif (NOT CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|am
     add_cxx_compile_options(-march=native)
 endif()
 
+if (APPLE AND LADYBIRD_LEGACY_MACOS)
+    add_cxx_compile_definitions(LADYBIRD_LEGACY_MACOS=1)
+endif()
+
 add_cxx_compile_options(-Wcast-qual)
 add_cxx_compile_options(-Wformat=2)
 add_cxx_compile_options(-Wimplicit-fallthrough)

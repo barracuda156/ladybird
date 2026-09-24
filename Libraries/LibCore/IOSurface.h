@@ -6,6 +6,8 @@
 
 #pragma once
 
+#ifdef AK_MACOS_HAS_IOSURFACE
+
 #include <AK/Forward.h>
 #include <AK/Noncopyable.h>
 #include <AK/OwnPtr.h>
@@ -45,3 +47,5 @@ private:
 };
 
 }
+
+#endif

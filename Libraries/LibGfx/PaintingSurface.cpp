@@ -14,7 +14,7 @@
 #include <gpu/ganesh/GrDirectContext.h>
 #include <gpu/ganesh/SkSurfaceGanesh.h>
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_METAL
 #    include <gpu/ganesh/mtl/GrMtlBackendSurface.h>
 #elif defined(USE_VULKAN_IMAGES)
 #    include <gpu/ganesh/vk/GrVkBackendSurface.h>
@@ -30,7 +30,7 @@ struct PaintingSurface::Impl {
     RefPtr<Bitmap> bitmap;
 };
 
-#if defined(AK_OS_MACOS) || defined(USE_VULKAN_IMAGES)
+#if defined(AK_MACOS_HAS_METAL) || defined(USE_VULKAN_IMAGES)
 static GrSurfaceOrigin origin_to_sk_origin(PaintingSurface::Origin origin)
 {
     switch (origin) {
@@ -126,7 +126,7 @@ NonnullRefPtr<PaintingSurface> PaintingSurface::wrap_bitmap(Bitmap& bitmap)
     return adopt_ref(*new PaintingSurface(make<Impl>(RefPtr<SkiaBackendContext> {}, size, surface, bitmap)));
 }
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
 NonnullRefPtr<PaintingSurface> PaintingSurface::create_from_iosurface(Core::IOSurfaceHandle&& iosurface_handle, NonnullRefPtr<SkiaBackendContext> context, Origin origin)
 {
     context->lock();

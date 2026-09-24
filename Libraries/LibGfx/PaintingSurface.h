@@ -14,7 +14,7 @@
 #include <LibGfx/Size.h>
 #include <LibGfx/SkiaBackendContext.h>
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_METAL
 #    include <LibGfx/MetalContext.h>
 #endif
 
@@ -35,7 +35,7 @@ public:
     static NonnullRefPtr<PaintingSurface> create_with_size(IntSize size, BitmapFormat color_type, AlphaType alpha_type);
     static NonnullRefPtr<PaintingSurface> wrap_bitmap(Bitmap&);
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
     static NonnullRefPtr<PaintingSurface> create_from_iosurface(Core::IOSurfaceHandle&&, NonnullRefPtr<SkiaBackendContext>, Origin = Origin::TopLeft);
 #endif
 

@@ -21,7 +21,7 @@
 #include <LibWebView/UserAgent.h>
 #include <LibWebView/ViewImplementation.h>
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
 #    include <LibCore/IOSurface.h>
 #    include <LibCore/MachPort.h>
 #endif
@@ -580,7 +580,7 @@ void ViewImplementation::did_allocate_backing_stores(Badge<WebContentClient>, i3
     m_client_state.back_bitmap.id = back_bitmap_id;
 }
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
 void ViewImplementation::did_allocate_iosurface_backing_stores(i32 front_id, Core::MachPort&& front_port, i32 back_id, Core::MachPort&& back_port)
 {
     if (m_client_state.has_usable_bitmap) {

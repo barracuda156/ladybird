@@ -85,6 +85,12 @@ ErrorOr<Vector<String>> FontDatabase::font_directories()
         paths.append(TRY(String::from_utf8(StringView { dir_cstring, strlen(dir_cstring) })));
     }
     FcStrListDone(dirs);
+#    if defined(AK_OS_MACOS)
+    // A MacPorts fontconfig.conf may not know about the system font directories, so search them too.
+    paths.append("/System/Library/Fonts"_string);
+    paths.append("/Library/Fonts"_string);
+    paths.append(TRY(String::formatted("{}/Library/Fonts"sv, Core::StandardPaths::home_directory())));
+#    endif
     return paths;
 
 #elif defined(AK_OS_HAIKU)

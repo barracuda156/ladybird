@@ -25,7 +25,7 @@ extern "C" {
 #include <GLES3/gl3.h>
 
 // Enable WebGL if we're on MacOS and can use Metal or if we can use shareable Vulkan images
-#if defined(AK_OS_MACOS) || defined(USE_VULKAN_IMAGES)
+#if defined(AK_MACOS_HAS_METAL) || defined(USE_VULKAN_IMAGES)
 #    define ENABLE_WEBGL 1
 #endif
 
@@ -96,7 +96,7 @@ void OpenGLContext::free_surface_resources()
 #    endif
 
     if (m_impl->surface != EGL_NO_SURFACE) {
-#    ifdef AK_OS_MACOS
+#    ifdef AK_MACOS_HAS_IOSURFACE
         eglReleaseTexImage(m_impl->display, m_impl->surface, EGL_BACK_BUFFER);
 #    endif
         eglDestroySurface(m_impl->display, m_impl->surface);
@@ -135,7 +135,7 @@ OwnPtr<OpenGLContext> OpenGLContext::create(NonnullRefPtr<Gfx::SkiaBackendContex
 #ifdef ENABLE_WEBGL
     EGLAttrib display_attributes[] = {
         EGL_PLATFORM_ANGLE_TYPE_ANGLE,
-#    if defined(AK_OS_MACOS)
+#    if defined(AK_MACOS_HAS_METAL)
         EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE,
 #    elif defined(USE_VULKAN_IMAGES)
         EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE,
@@ -164,7 +164,7 @@ OwnPtr<OpenGLContext> OpenGLContext::create(NonnullRefPtr<Gfx::SkiaBackendContex
     }
 
     EGLint texture_target;
-#    if defined(AK_OS_MACOS)
+#    if defined(AK_MACOS_HAS_METAL)
     eglGetConfigAttrib(display, config, EGL_BIND_TO_TEXTURE_TARGET_ANGLE, &texture_target);
     VERIFY(texture_target == EGL_TEXTURE_RECTANGLE_ANGLE || texture_target == EGL_TEXTURE_2D);
 #    elif defined(USE_VULKAN_IMAGES)
@@ -282,7 +282,7 @@ void OpenGLContext::clear_buffer_to_default_values()
 #endif
 }
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
 void OpenGLContext::allocate_iosurface_painting_surface()
 {
     auto iosurface = Core::IOSurfaceHandle::create(m_size.width(), m_size.height());
@@ -392,7 +392,7 @@ void OpenGLContext::allocate_painting_surface_if_needed()
 
     VERIFY(!m_size.is_empty());
 
-#    if defined(AK_OS_MACOS)
+#    if defined(AK_MACOS_HAS_IOSURFACE)
     allocate_iosurface_painting_surface();
 #    elif defined(USE_VULKAN_IMAGES)
     allocate_vkimage_painting_surface();
@@ -450,7 +450,7 @@ void OpenGLContext::present(bool preserve_drawing_buffer)
     // With Metal, glFlush flushes the command buffer, but without waiting for it to be scheduled or completed.
     // eglWaitUntilWorkScheduledANGLE flushes the command buffer, and waits until it has been scheduled, hence the name.
     // eglWaitUntilWorkScheduledANGLE only has an effect on CGL and Metal backends, so we only use it on macOS.
-#    if defined(AK_OS_MACOS)
+#    if defined(AK_MACOS_HAS_METAL)
     eglWaitUntilWorkScheduledANGLE(m_impl->display);
 #    elif defined(USE_VULKAN_IMAGES)
     // FIXME: CPU sync for now, but it would be better to export a fence and have Skia wait for it before reading from the surface

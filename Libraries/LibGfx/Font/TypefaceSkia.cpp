@@ -22,7 +22,7 @@
 #    include <ports/SkFontScanner_FreeType.h>
 #endif
 
-#ifdef AK_OS_MACOS
+#if defined(AK_OS_MACOS) && !defined(USE_FONTCONFIG)
 #    include <ports/SkFontMgr_mac_ct.h>
 #endif
 
@@ -37,7 +37,7 @@ struct TypefaceSkia::Impl {
 static SkFontMgr& font_manager()
 {
     if (!s_font_manager) {
-#ifdef AK_OS_MACOS
+#if defined(AK_OS_MACOS) && !defined(USE_FONTCONFIG)
         if (Gfx::FontDatabase::the().system_font_provider_name() != "FontConfig"sv) {
             s_font_manager = SkFontMgr_New_CoreText(nullptr);
         }

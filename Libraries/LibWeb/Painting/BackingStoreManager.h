@@ -15,7 +15,7 @@ class WEB_API BackingStoreManager : public JS::Cell {
     GC_DECLARE_ALLOCATOR(BackingStoreManager);
 
 public:
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
     static void set_browser_mach_port(Core::MachPort&&);
 #endif
 

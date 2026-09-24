@@ -12,7 +12,7 @@
 #include <LibWeb/Painting/BackingStoreManager.h>
 #include <WebContent/PageClient.h>
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
 #    include <LibCore/IOSurface.h>
 #    include <LibCore/MachPort.h>
 #    include <LibCore/Platform/MachMessageTypes.h>
@@ -22,7 +22,7 @@ namespace Web::Painting {
 
 GC_DEFINE_ALLOCATOR(BackingStoreManager);
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
 static Optional<Core::MachPort> s_browser_mach_port;
 void BackingStoreManager::set_browser_mach_port(Core::MachPort&& port)
 {
@@ -56,7 +56,7 @@ void BackingStoreManager::reallocate_backing_stores(Gfx::IntSize size)
     RefPtr<Gfx::PaintingSurface> front_store;
     RefPtr<Gfx::PaintingSurface> back_store;
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_IOSURFACE
     if (skia_backend_context && s_browser_mach_port.has_value()) {
         auto back_iosurface = Core::IOSurfaceHandle::create(size.width(), size.height());
         auto back_iosurface_port = back_iosurface.create_mach_port();

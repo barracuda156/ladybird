@@ -225,8 +225,11 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
 
 #if defined(AK_OS_MACOS)
     if (!mach_server_name.is_empty()) {
-        auto server_port = Core::Platform::register_with_mach_server(mach_server_name);
+        [[maybe_unused]] auto server_port = Core::Platform::register_with_mach_server(mach_server_name);
+
+#    if defined(AK_MACOS_HAS_IOSURFACE)
         Web::Painting::BackingStoreManager::set_browser_mach_port(move(server_port));
+#    endif
     }
 #endif
 

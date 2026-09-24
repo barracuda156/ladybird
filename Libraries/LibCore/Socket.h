@@ -15,6 +15,11 @@
 #include <LibCore/Notifier.h>
 #include <LibCore/SocketAddress.h>
 
+// SDKs older than macOS 10.13 don't define MSG_NOSIGNAL; SO_NOSIGPIPE is used instead on those systems.
+#ifndef MSG_NOSIGNAL
+#    define MSG_NOSIGNAL 0
+#endif
+
 namespace Core {
 
 /// The Socket class is the base class for all concrete BSD-style socket

@@ -93,10 +93,12 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     m_mach_port_server->on_receive_child_mach_port = [this](auto pid, auto port) {
         set_process_mach_port(pid, move(port));
     };
+#    ifdef AK_MACOS_HAS_IOSURFACE
     m_mach_port_server->on_receive_backing_stores = [](MachPortServer::BackingStoresMessage message) {
         if (auto view = WebContentClient::view_for_pid_and_page_id(message.pid, message.page_id); view.has_value())
             view->did_allocate_iosurface_backing_stores(message.front_backing_store_id, move(message.front_backing_store_port), message.back_backing_store_id, move(message.back_backing_store_port));
     };
+#    endif
 #endif
 
     Vector<ByteString> raw_urls;

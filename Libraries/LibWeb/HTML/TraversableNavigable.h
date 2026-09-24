@@ -18,7 +18,7 @@
 #include <LibWeb/Page/Page.h>
 #include <LibWeb/StorageAPI/StorageShed.h>
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_METAL
 #    include <LibGfx/MetalContext.h>
 #endif
 

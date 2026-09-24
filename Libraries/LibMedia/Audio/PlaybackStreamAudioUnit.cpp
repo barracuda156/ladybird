@@ -16,6 +16,11 @@
 
 #include <AudioToolbox/AudioFormat.h>
 #include <AudioUnit/AudioUnit.h>
+#include <AvailabilityMacros.h>
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+#    include <CoreServices/CoreServices.h>
+#endif
 
 namespace Audio {
 
@@ -169,8 +174,16 @@ public:
         component_description.componentFlags = 0;
         component_description.componentFlagsMask = 0;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+        // NOTE: Untested. AudioComponentFindNext/AudioComponentInstanceNew are 10.6+; on older SDKs use the
+        // Component Manager equivalents. AudioComponentDescription and ComponentDescription share the same
+        // five UInt32 fields, and AudioUnit is a ComponentInstance there.
+        auto* component = FindNextComponent(nullptr, reinterpret_cast<ComponentDescription*>(&component_description));
+        AU_TRY(OpenAComponent(component, &state->m_audio_unit));
+#else
         auto* component = AudioComponentFindNext(NULL, &component_description);
         AU_TRY(AudioComponentInstanceNew(component, &state->m_audio_unit));
+#endif
 
         auto description = TRY(get_audio_unit_property<AudioStreamBasicDescription>(state->m_audio_unit, kAudioUnitProperty_StreamFormat));
 

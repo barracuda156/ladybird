@@ -23,6 +23,10 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(AK_OS_MACOS)
+#    include <AvailabilityMacros.h>
+#endif
+
 #if defined(AK_OS_SERENITY)
 #    include <serenity.h>
 #endif
@@ -1322,7 +1326,13 @@ static auto current_thread_id()
     return GetCurrentThreadId();
 #elif defined(AK_OS_MACOS)
     u64 thread_id { 0 };
+#    if MAC_OS_X_VERSION_MIN_REQUIRED < 1060 || AK_IS_ARCH_PPC() || AK_IS_ARCH_PPC64()
+    // pthread_threadid_np() is a 10.6+ API that the PowerPC libSystem (10.5, and the PowerPC build of
+    // 10.6 whether native or under Rosetta) never got; use the Mach thread port there instead.
+    thread_id = pthread_mach_thread_np(pthread_self());
+#    else
     pthread_threadid_np(nullptr, &thread_id);
+#    endif
     return thread_id;
 #elif defined(AK_OS_FREEBSD)
     return pthread_getthreadid_np();

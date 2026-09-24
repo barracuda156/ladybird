@@ -92,6 +92,13 @@
 #    define AK_OS_BSD_GENERIC
 #endif
 
+// Metal and IOSurface only exist on 64-bit Intel and Apple-silicon macOS. Builds for PowerPC or for
+// SDKs older than 10.11 opt out with LADYBIRD_LEGACY_MACOS and fall back to CPU painting.
+#if defined(AK_OS_MACOS) && !defined(LADYBIRD_LEGACY_MACOS)
+#    define AK_MACOS_HAS_IOSURFACE
+#    define AK_MACOS_HAS_METAL
+#endif
+
 #if defined(__IOS__)
 #    define AK_OS_IOS
 #    define AK_OS_BSD_GENERIC

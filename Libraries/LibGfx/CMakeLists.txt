@@ -61,7 +61,7 @@ set(SOURCES
     YUVData.cpp
 )
 
-if (APPLE)
+if (APPLE AND NOT LADYBIRD_LEGACY_MACOS)
     list(APPEND SOURCES MetalContext.mm)
 endif()
 
@@ -150,7 +150,9 @@ else()
 endif()
 
 if (APPLE)
-    target_link_libraries(LibCore PUBLIC "-framework Metal")
+    if (NOT LADYBIRD_LEGACY_MACOS)
+        target_link_libraries(LibCore PUBLIC "-framework Metal")
+    endif()
     target_link_libraries(LibCore PUBLIC "-framework Accelerate")
 endif()
 

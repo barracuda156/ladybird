@@ -18,7 +18,7 @@
 #    include <gpu/vk/VulkanExtensions.h>
 #endif
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_METAL
 #    include <gpu/ganesh/GrBackendSurface.h>
 #    include <gpu/ganesh/mtl/GrMtlBackendContext.h>
 #    include <gpu/ganesh/mtl/GrMtlBackendSurface.h>
@@ -33,7 +33,7 @@ void SkiaBackendContext::initialize_gpu_backend()
 {
     VERIFY(!s_the);
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_METAL
     auto metal_context = get_metal_context();
     s_the = create_metal_context(*metal_context);
 #elif USE_VULKAN
@@ -114,7 +114,7 @@ RefPtr<SkiaBackendContext> SkiaBackendContext::create_vulkan_context(VulkanConte
 }
 #endif
 
-#ifdef AK_OS_MACOS
+#ifdef AK_MACOS_HAS_METAL
 class SkiaMetalBackendContext final : public SkiaBackendContext {
     AK_MAKE_NONCOPYABLE(SkiaMetalBackendContext);
     AK_MAKE_NONMOVABLE(SkiaMetalBackendContext);
