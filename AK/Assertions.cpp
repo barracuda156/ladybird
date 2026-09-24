@@ -136,14 +136,20 @@ NEVER_INLINE void ak_trap(void)
     __builtin_trap();
 }
 
-#ifndef AK_OS_WINDOWS
+#if defined(AK_OS_MACOS) && defined(LADYBIRD_LEGACY_MACOS)
+// The dyld of Mac OS X 10.5 and 10.6 refuses to load an image whose weak, dynamically looked up
+// ak_assertion_handler is missing, so look the handler up at run time instead.
+#    include <dlfcn.h>
+#elif !defined(AK_OS_WINDOWS)
 [[gnu::weak]] void ak_assertion_handler(char const* message);
 #endif
 
 using AssertionHandlerFunc = void (*)(char const*);
 static AssertionHandlerFunc get_custom_assertion_handler()
 {
-#ifndef AK_OS_WINDOWS
+#if defined(AK_OS_MACOS) && defined(LADYBIRD_LEGACY_MACOS)
+    return reinterpret_cast<AssertionHandlerFunc>(dlsym(RTLD_DEFAULT, "ak_assertion_handler"));
+#elif !defined(AK_OS_WINDOWS)
     return ak_assertion_handler;
 #else
     // Windows doesn't support weak symbols as nicely as ELF platforms.
