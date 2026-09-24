@@ -6,9 +6,11 @@
 
 #pragma once
 
+#include <AK/OwnPtr.h>
 #include <LibGfx/Path.h>
 
 class SkPath;
+class SkPathBuilder;
 
 namespace Gfx {
 
@@ -47,15 +49,19 @@ public:
 
     virtual String to_svg_string() const override;
 
-    SkPath const& sk_path() const { return *m_path; }
-    SkPath& sk_path() { return *m_path; }
+    // Skia edits paths only through SkPathBuilder. Every mutation goes through builder(), which drops the
+    // cached immutable SkPath; sk_path() snapshots the builder again on the next read. Copies start with
+    // the cache filled, so a copy handed to another thread is never written to by a read.
+    SkPath const& sk_path() const;
+    SkPathBuilder& builder();
 
 private:
     PathImplSkia();
     PathImplSkia(PathImplSkia const& other);
 
     Gfx::FloatPoint m_last_move_to;
-    NonnullOwnPtr<SkPath> m_path;
+    NonnullOwnPtr<SkPathBuilder> m_builder;
+    mutable OwnPtr<SkPath> m_path;
 };
 
 }
