@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 #if defined(AK_OS_MACOS)
-#    include <bootstrap.h>
+#    include <servers/bootstrap.h>
 #endif
 
 namespace Core {
