@@ -90,7 +90,9 @@ private:
 
     size_t m_length { 0 };
     mutable unsigned m_hash { 0 };
-    mutable bool m_has_hash { false };
+    // u8 rather than bool: the static empty-string mirror relies on this layout ending with padding,
+    // which a 4-byte bool (Darwin PowerPC) would remove.
+    mutable u8 m_has_hash { false };
     char m_inline_buffer[0];
 };
 

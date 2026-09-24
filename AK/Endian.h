@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include <AK/Array.h>
+#include <AK/BigIntBase.h>
+#include <AK/BitCast.h>
 #include <AK/Format.h>
 #include <AK/Forward.h>
 #include <AK/Platform.h>
@@ -29,7 +32,17 @@ ALWAYS_INLINE constexpr T convert_between_host_and_little_endian(T value)
 {
     if constexpr (HostIsLittleEndian || sizeof(T) == 1)
         return value;
-    else if constexpr (sizeof(T) == 8)
+    else if constexpr (IsFloatingPoint<T>)
+        // Swap the bit pattern, not the numeric value.
+        return bit_cast<T>(convert_between_host_and_little_endian(bit_cast<Conditional<sizeof(T) == 4, u32, u64>>(value)));
+    else if constexpr (sizeof(T) == 16) {
+        // Multi-word integers keep their words in ascending significance on every host, so only the
+        // bytes within each word change place.
+        auto words = bit_cast<Array<NativeWord, 16 / sizeof(NativeWord)>>(value);
+        for (auto& word : words)
+            word = convert_between_host_and_little_endian(word);
+        return bit_cast<T>(words);
+    } else if constexpr (sizeof(T) == 8)
         return static_cast<T>(__builtin_bswap64(static_cast<u64>(value)));
     else if constexpr (sizeof(T) == 4)
         return static_cast<T>(__builtin_bswap32(static_cast<u32>(value)));
@@ -44,7 +57,14 @@ ALWAYS_INLINE constexpr T convert_between_host_and_big_endian(T value)
 {
     if constexpr (sizeof(T) == 1 || !HostIsLittleEndian)
         return value;
-    else if constexpr (sizeof(T) == 8)
+    else if constexpr (IsFloatingPoint<T>)
+        return bit_cast<T>(convert_between_host_and_big_endian(bit_cast<Conditional<sizeof(T) == 4, u32, u64>>(value)));
+    else if constexpr (sizeof(T) == 16) {
+        auto words = bit_cast<Array<NativeWord, 16 / sizeof(NativeWord)>>(value);
+        for (auto& word : words)
+            word = convert_between_host_and_big_endian(word);
+        return bit_cast<T>(words);
+    } else if constexpr (sizeof(T) == 8)
         return static_cast<T>(__builtin_bswap64(static_cast<u64>(value)));
     else if constexpr (sizeof(T) == 4)
         return static_cast<T>(__builtin_bswap32(static_cast<u32>(value)));

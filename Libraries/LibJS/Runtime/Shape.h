@@ -149,7 +149,11 @@ private:
 };
 
 #if !defined(AK_OS_WINDOWS)
+#    if defined(AK_ARCH_64_BIT)
 static_assert(sizeof(Shape) == 96, "Keep the size of JS::Shape down!");
+#    else
+static_assert(sizeof(Shape) <= 96, "Keep the size of JS::Shape down!");
+#    endif
 #endif
 
 }

@@ -5,6 +5,7 @@
  */
 
 #include <AK/Debug.h>
+#include <AK/Endian.h>
 #include <AK/MemoryStream.h>
 #include <AK/Types.h>
 #include <LibGfx/ImageFormats/BMPLoader.h>
@@ -18,11 +19,11 @@ enum class IconType : u16 {
     CUR = 2,
 };
 
-// FIXME: This is in little-endian order. Maybe need a NetworkOrdered<T> equivalent eventually.
+// The on-disk structures are little-endian.
 struct ICONDIR {
-    u16 must_be_0 = 0;
-    IconType type = IconType::ICO;
-    u16 image_count = 0;
+    LittleEndian<u16> must_be_0 { 0 };
+    LittleEndian<u16> type { to_underlying(IconType::ICO) };
+    LittleEndian<u16> image_count { 0 };
 };
 static_assert(AssertSize<ICONDIR, 6>());
 
@@ -31,10 +32,10 @@ struct ICONDIRENTRY {
     u8 height;
     u8 color_count;
     u8 reserved_0;
-    u16 planes;
-    u16 bits_per_pixel;
-    u32 size;
-    u32 offset;
+    LittleEndian<u16> planes;
+    LittleEndian<u16> bits_per_pixel;
+    LittleEndian<u32> size;
+    LittleEndian<u32> offset;
 };
 static_assert(AssertSize<ICONDIRENTRY, 16>());
 
@@ -83,10 +84,10 @@ struct ICOLoadingContext {
 static ErrorOr<size_t> decode_ico_header(Stream& stream, IconType& out_type)
 {
     auto header = TRY(stream.read_value<ICONDIR>());
-    if (header.must_be_0 != 0 || (header.type != IconType::ICO && header.type != IconType::CUR))
+    if (header.must_be_0 != 0 || (header.type != to_underlying(IconType::ICO) && header.type != to_underlying(IconType::CUR)))
         return Error::from_string_literal("Invalid ICO/CUR header");
 
-    out_type = header.type;
+    out_type = static_cast<IconType>(static_cast<u16>(header.type));
     return { header.image_count };
 }
 

@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/BitCast.h>
 #include <AK/Debug.h>
 #include <AK/Function.h>
 #include <AK/IntegralMath.h>
@@ -1368,18 +1369,14 @@ DecoderErrorOr<double> Streamer::read_float()
     if (length != 4u && length != 8u)
         return DecoderError::format(DecoderErrorCategory::Invalid, "Float size must be 4 or 8 bytes");
 
-    union {
-        u64 value;
-        float float_value;
-        double double_value;
-    } read_data;
-    read_data.value = 0;
+    u64 value = 0;
     for (size_t i = 0; i < length; i++) {
-        read_data.value = (read_data.value << 8u) + TRY(read_octet());
+        value = (value << 8u) + TRY(read_octet());
     }
+    // The bits sit in the low end of the assembled integer on every host.
     if (length == 4u)
-        return read_data.float_value;
-    return read_data.double_value;
+        return bit_cast<float>(static_cast<u32>(value));
+    return bit_cast<double>(value);
 }
 
 DecoderErrorOr<void> Streamer::read_unknown_element()

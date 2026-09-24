@@ -208,37 +208,39 @@ enum class Errno : u16 {
 struct Rights {
     using CompatibleType = u64;
 
+    // Bit-fields are u8 rather than bool: on ABIs with a 4-byte bool (Darwin PowerPC) bool bit-fields
+    // would be allocated in 4-byte units and change the size of these overlays.
     struct Bits {
-        bool fd_datasync : 1;
-        bool fd_read : 1;
-        bool fd_seek : 1;
-        bool fd_fdstat_set_flags : 1;
-        bool fd_sync : 1;
-        bool fd_tell : 1;
-        bool fd_write : 1;
-        bool fd_advise : 1;
-        bool fd_allocate : 1;
-        bool path_create_directory : 1;
-        bool path_create_file : 1;
-        bool path_link_source : 1;
-        bool path_link_target : 1;
-        bool path_open : 1;
-        bool fd_readdir : 1;
-        bool path_readlink : 1;
-        bool path_rename_source : 1;
-        bool path_rename_target : 1;
-        bool path_filestat_get : 1;
-        bool path_filestat_set_size : 1;
-        bool path_filestat_set_times : 1;
-        bool fd_filestat_get : 1;
-        bool fd_filestat_set_size : 1;
-        bool fd_filestat_set_times : 1;
-        bool path_symlink : 1;
-        bool path_remove_directory : 1;
-        bool path_unlink_file : 1;
-        bool poll_fd_readwrite : 1;
-        bool sock_shutdown : 1;
-        bool sock_accept : 1;
+        u8 fd_datasync : 1;
+        u8 fd_read : 1;
+        u8 fd_seek : 1;
+        u8 fd_fdstat_set_flags : 1;
+        u8 fd_sync : 1;
+        u8 fd_tell : 1;
+        u8 fd_write : 1;
+        u8 fd_advise : 1;
+        u8 fd_allocate : 1;
+        u8 path_create_directory : 1;
+        u8 path_create_file : 1;
+        u8 path_link_source : 1;
+        u8 path_link_target : 1;
+        u8 path_open : 1;
+        u8 fd_readdir : 1;
+        u8 path_readlink : 1;
+        u8 path_rename_source : 1;
+        u8 path_rename_target : 1;
+        u8 path_filestat_get : 1;
+        u8 path_filestat_set_size : 1;
+        u8 path_filestat_set_times : 1;
+        u8 fd_filestat_get : 1;
+        u8 fd_filestat_set_size : 1;
+        u8 fd_filestat_set_times : 1;
+        u8 path_symlink : 1;
+        u8 path_remove_directory : 1;
+        u8 path_unlink_file : 1;
+        u8 poll_fd_readwrite : 1;
+        u8 sock_shutdown : 1;
+        u8 sock_accept : 1;
 
         u8 _unused1 : 2;
         u32 _unused2 : 32;
@@ -330,11 +332,11 @@ struct FDFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool append : 1;
-        bool dsync : 1;
-        bool nonblock : 1;
-        bool rsync : 1;
-        bool sync : 1;
+        u8 append : 1;
+        u8 dsync : 1;
+        u8 nonblock : 1;
+        u8 rsync : 1;
+        u8 sync : 1;
 
         u8 _unused1 : 3;
         u8 _unused2 : 8;
@@ -371,10 +373,10 @@ struct FSTFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool atim : 1;
-        bool atim_now : 1;
-        bool mtim : 1;
-        bool mtim_now : 1;
+        u8 atim : 1;
+        u8 atim_now : 1;
+        u8 mtim : 1;
+        u8 mtim_now : 1;
 
         u8 _unused1 : 4;
         u8 _unused2 : 8;
@@ -397,7 +399,7 @@ struct LookupFlags {
     using CompatibleType = u32;
 
     struct Bits {
-        bool symlink_follow : 1;
+        u8 symlink_follow : 1;
 
         u8 _unused1 : 7;
         u8 _unused2 : 8;
@@ -421,10 +423,10 @@ struct OFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool creat : 1;
-        bool directory : 1;
-        bool excl : 1;
-        bool trunc : 1;
+        u8 creat : 1;
+        u8 directory : 1;
+        u8 excl : 1;
+        u8 trunc : 1;
 
         u8 _unused1 : 4;
         u8 _unused2 : 8;
@@ -475,7 +477,7 @@ struct EventRWFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool fd_readwrite_hangup : 1;
+        u8 fd_readwrite_hangup : 1;
 
         u8 _unused1 : 7;
         u8 _unused2 : 8;
@@ -521,7 +523,7 @@ struct SubClockFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool subscription_clock_abstime : 1;
+        u8 subscription_clock_abstime : 1;
 
         u8 _unused1 : 7;
         u8 _unused2 : 8;
@@ -621,8 +623,8 @@ struct RIFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool recv_peek : 1;
-        bool recv_waitall : 1;
+        u8 recv_peek : 1;
+        u8 recv_waitall : 1;
 
         u8 _unused1 : 6;
         u8 _unused2 : 8;
@@ -642,7 +644,7 @@ struct ROFlags {
     using CompatibleType = u16;
 
     struct Bits {
-        bool recv_data_truncated : 1;
+        u8 recv_data_truncated : 1;
 
         u8 _unused1 : 7;
         u8 _unused2 : 8;
@@ -665,8 +667,8 @@ struct SDFlags {
     using CompatibleType = u8;
 
     struct Bits {
-        bool rd : 1;
-        bool wr : 1;
+        u8 rd : 1;
+        u8 wr : 1;
 
         u8 _unused : 6;
     };

@@ -157,7 +157,7 @@ public:
         // 4: null exnref
         // 5: exnref
         ref.ref().visit(
-            [&](Reference::Func const& func) { m_value = u128(bit_cast<u64>(func.address), bit_cast<u64>(func.source_module.ptr())); },
+            [&](Reference::Func const& func) { m_value = u128(bit_cast<u64>(func.address), static_cast<u64>(bit_cast<FlatPtr>(func.source_module.ptr()))); },
             [&](Reference::Extern const& func) { m_value = u128(bit_cast<u64>(func.address), 1); },
             [&](Reference::Null const& null) { m_value = u128(0, null.type.kind() == ValueType::Kind::FunctionReference ? 2 : null.type.kind() == ValueType::Kind::ExceptionReference ? 4
                                                                                                                                                                                       : 3); },
@@ -199,7 +199,7 @@ public:
         if constexpr (IsSame<T, Reference>) {
             switch (m_value.high() & 3) {
             case 0:
-                return Reference { Reference::Func { bit_cast<FunctionAddress>(m_value.low()), bit_cast<Wasm::Module*>(m_value.high()) } };
+                return Reference { Reference::Func { bit_cast<FunctionAddress>(m_value.low()), bit_cast<Wasm::Module*>(static_cast<FlatPtr>(m_value.high())) } };
             case 1:
                 return Reference { Reference::Extern { bit_cast<ExternAddress>(m_value.low()) } };
             case 2:

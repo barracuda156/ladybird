@@ -20,7 +20,7 @@ struct EmptyByteStringImpl {
     // Members from ByteStringImpl
     size_t length { 0 };
     unsigned hash { 0 };
-    bool has_hash { false };
+    u8 has_hash { false };
     char inline_buffer[1] { '\0' };
 
     constexpr EmptyByteStringImpl() = default;

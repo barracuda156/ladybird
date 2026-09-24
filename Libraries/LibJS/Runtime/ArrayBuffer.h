@@ -7,6 +7,7 @@
 #pragma once
 
 #include <AK/ByteBuffer.h>
+#include <AK/Endian.h>
 #include <AK/Function.h>
 #include <AK/Variant.h>
 #include <LibGC/WeakHashSet.h>
@@ -201,7 +202,9 @@ static Value raw_bytes_to_numeric(VM& vm, Bytes raw_value, bool is_little_endian
     //    NOTE: Used in step 7, but not needed with our implementation of that step.
 
     // 2. If isLittleEndian is false, reverse the order of the elements of rawBytes.
-    if (!is_little_endian) {
+    // NOTE: The bytes are copied into a host-order value below, so what actually needs reversing is
+    //       a requested order that differs from the host's.
+    if (raw_value.size() > 1 && is_little_endian != AK::HostIsLittleEndian) {
         VERIFY(raw_value.size() % 2 == 0);
         for (size_t i = 0; i < raw_value.size() / 2; ++i)
             swap(raw_value[i], raw_value[raw_value.size() - 1 - i]);
@@ -334,7 +337,8 @@ static void numeric_to_raw_bytes(VM& vm, Value value, bool is_little_endian, Byt
     using UnderlyingBufferDataType = Conditional<IsSame<ClampedU8, T>, u8, T>;
     VERIFY(raw_bytes.size() == sizeof(UnderlyingBufferDataType));
     auto flip_if_needed = [&]() {
-        if (is_little_endian)
+        // The bytes start out in host order; only a differing requested order needs a swap.
+        if (sizeof(UnderlyingBufferDataType) == 1 || is_little_endian == AK::HostIsLittleEndian)
             return;
         VERIFY(sizeof(UnderlyingBufferDataType) % 2 == 0);
         for (size_t i = 0; i < sizeof(UnderlyingBufferDataType) / 2; ++i)

@@ -36,6 +36,45 @@ public:
     static constexpr uintptr_t SYMBOL_FLAG = 2;
     static constexpr uintptr_t NUMBER_FLAG = 3;
 
+    // The tag lives in the low bits of the word that m_bits aliases. On 64-bit hosts that word is the
+    // whole 8-byte storage. Numeric keys need 34 bits (a u32 index past the two tag bits), so the
+    // storage stays 8 bytes on 32-bit hosts too; there m_bits aliases only the first word of
+    // m_number (the high word on big-endian hosts), which therefore carries the tag and the low 30
+    // index bits while the other word holds the remaining two.
+#if defined(AK_ARCH_64_BIT)
+    static constexpr u64 number_storage(u32 index) { return static_cast<u64>(index) << 2 | NUMBER_FLAG; }
+    static constexpr u32 number_from_storage(u64 storage) { return static_cast<u32>(storage >> 2); }
+    static constexpr u64 pointer_storage(uintptr_t bits) { return bits; }
+#else
+    static constexpr u64 join_words(u32 first_word, u32 second_word)
+    {
+#    if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        return static_cast<u64>(first_word) << 32 | second_word;
+#    else
+        return static_cast<u64>(second_word) << 32 | first_word;
+#    endif
+    }
+    static constexpr u32 first_word(u64 storage)
+    {
+#    if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        return static_cast<u32>(storage >> 32);
+#    else
+        return static_cast<u32>(storage);
+#    endif
+    }
+    static constexpr u32 second_word(u64 storage)
+    {
+#    if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        return static_cast<u32>(storage);
+#    else
+        return static_cast<u32>(storage >> 32);
+#    endif
+    }
+    static constexpr u64 number_storage(u32 index) { return join_words(index << 2 | NUMBER_FLAG, index >> 30); }
+    static constexpr u32 number_from_storage(u64 storage) { return first_word(storage) >> 2 | second_word(storage) << 30; }
+    static constexpr u64 pointer_storage(uintptr_t bits) { return join_words(bits, 0); }
+#endif
+
     bool is_string() const { return (m_bits & 3) == NORMAL_STRING_FLAG || (m_bits & 3) == SHORT_STRING_FLAG; }
     bool is_number() const { return (m_bits & 3) == NUMBER_FLAG; }
     bool is_symbol() const { return (m_bits & 3) == SYMBOL_FLAG; }
@@ -44,18 +83,22 @@ public:
 
     PropertyKey(PropertyKey const& other)
     {
-        if (other.is_string())
+        if (other.is_string()) {
+            m_number = 0;
             new (&m_string) Utf16FlyString(other.m_string);
-        else
-            m_bits = other.m_bits;
+        } else {
+            m_number = other.m_number;
+        }
     }
 
     PropertyKey(PropertyKey&& other) noexcept
     {
-        if (other.is_string())
+        if (other.is_string()) {
+            m_number = 0;
             new (&m_string) Utf16FlyString(move(other.m_string));
-        else
-            m_bits = exchange(other.m_bits, 0);
+        } else {
+            m_number = exchange(other.m_number, 0);
+        }
     }
 
     template<Integral T>
@@ -66,11 +109,12 @@ public:
         VERIFY(index >= 0);
         if constexpr (NumericLimits<T>::max() >= NumericLimits<u32>::max()) {
             if (index >= NumericLimits<u32>::max()) {
+                m_number = 0;
                 new (&m_string) Utf16FlyString { Utf16String::number(index) };
                 return;
             }
         }
-        m_number = static_cast<u64>(index) << 2 | NUMBER_FLAG;
+        m_number = number_storage(static_cast<u32>(index));
     }
 
     PropertyKey(Utf16FlyString string, StringMayBeNumber string_may_be_number = StringMayBeNumber::Yes)
@@ -79,12 +123,13 @@ public:
             if (!string.is_empty() && !(string.code_unit_at(0) == '0' && string.length_in_code_units() > 1)) {
                 auto property_index = string.to_number<u32>(TrimWhitespace::No);
                 if (property_index.has_value() && property_index.value() < NumericLimits<u32>::max()) {
-                    m_number = static_cast<u64>(property_index.release_value()) << 2 | NUMBER_FLAG;
+                    m_number = number_storage(property_index.release_value());
                     return;
                 }
             }
         }
 
+        m_number = 0;
         new (&m_string) Utf16FlyString(move(string));
     }
 
@@ -95,7 +140,7 @@ public:
 
     PropertyKey(GC::Ref<Symbol> symbol)
     {
-        m_bits = reinterpret_cast<uintptr_t>(symbol.ptr()) | SYMBOL_FLAG;
+        m_number = pointer_storage(reinterpret_cast<uintptr_t>(symbol.ptr()) | SYMBOL_FLAG);
     }
 
     PropertyKey& operator=(PropertyKey const& other)
@@ -127,7 +172,7 @@ public:
     u32 as_number() const
     {
         VERIFY(is_number());
-        return m_number >> 2;
+        return number_from_storage(m_number);
     }
 
     Utf16FlyString const& as_string() const
@@ -139,7 +184,7 @@ public:
     Symbol const* as_symbol() const
     {
         VERIFY(is_symbol());
-        return reinterpret_cast<Symbol const*>(m_bits & ~3ULL);
+        return reinterpret_cast<Symbol const*>(m_bits & ~static_cast<uintptr_t>(3));
     }
 
     Value to_value(VM& vm) const
@@ -186,11 +231,11 @@ private:
     };
 
     explicit PropertyKey(ShouldMakeEmptyOptional)
-        : m_bits(0)
+        : m_number(0)
     {
     }
 
-    [[nodiscard]] bool is_empty_optional() const { return m_bits == 0; }
+    [[nodiscard]] bool is_empty_optional() const { return m_number == 0; }
 
     union {
         Utf16FlyString m_string;
@@ -200,7 +245,7 @@ private:
     };
 };
 
-static_assert(sizeof(PropertyKey) == sizeof(uintptr_t));
+static_assert(sizeof(PropertyKey) == sizeof(u64));
 
 }
 

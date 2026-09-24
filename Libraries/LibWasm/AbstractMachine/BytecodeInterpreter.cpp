@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Array.h>
 #include <AK/Bitmap.h>
 #include <AK/ByteReader.h>
 #include <AK/Debug.h>
@@ -61,22 +62,23 @@ constexpr auto regname = [](auto regnum) -> ByteString {
     return ByteString::formatted("reg{}", to_underlying(regnum));
 };
 
+// Produces the host-order bit pattern of a value; store_value() serializes it little-endian.
 template<typename T>
 struct ConvertToRaw {
     T operator()(T value)
     {
-        return LittleEndian<T>(value);
+        return value;
     }
 };
 
 template<>
 struct ConvertToRaw<float> {
-    u32 operator()(float value) const { return bit_cast<LittleEndian<u32>>(value); }
+    u32 operator()(float value) const { return bit_cast<u32>(value); }
 };
 
 template<>
 struct ConvertToRaw<double> {
-    u64 operator()(double value) const { return bit_cast<LittleEndian<u64>>(value); }
+    u64 operator()(double value) const { return bit_cast<u64>(value); }
 };
 
 #define TRAP_IF_NOT(x, ...)                                                                    \
@@ -5498,13 +5500,37 @@ bool BytecodeInterpreter::pop_and_store(Configuration& configuration, Instructio
     return store_value(configuration, instruction, value, 1, addresses);
 }
 
+// WebAssembly linear memory is little-endian regardless of the host byte order, so a value is
+// serialized explicitly instead of copying its in-memory representation.
+template<typename T>
+static Array<u8, sizeof(T)> to_little_endian_bytes(T value)
+{
+    Array<u8, sizeof(T)> bytes;
+    if constexpr (AK::HostIsLittleEndian) {
+        memcpy(bytes.data(), &value, sizeof(T));
+    } else if constexpr (IsSame<T, u128>) {
+        auto low = AK::convert_between_host_and_little_endian(value.low());
+        auto high = AK::convert_between_host_and_little_endian(value.high());
+        memcpy(bytes.data(), &low, sizeof(low));
+        memcpy(bytes.data() + sizeof(low), &high, sizeof(high));
+    } else if constexpr (IsFloatingPoint<T>) {
+        auto swapped = AK::convert_between_host_and_little_endian(bit_cast<Conditional<sizeof(T) == 4, u32, u64>>(value));
+        memcpy(bytes.data(), &swapped, sizeof(swapped));
+    } else {
+        auto swapped = AK::convert_between_host_and_little_endian(value);
+        memcpy(bytes.data(), &swapped, sizeof(swapped));
+    }
+    return bytes;
+}
+
 template<typename StoreT>
 bool BytecodeInterpreter::store_value(Configuration& configuration, Instruction const& instruction, StoreT value, size_t address_source, SourcesAndDestination const& addresses)
 {
     auto& memarg = instruction.arguments().unsafe_get<Instruction::MemoryArgument>();
     dbgln_if(WASM_TRACE_DEBUG, "stack({}) -> temporary({}b)", value, sizeof(StoreT));
     auto base = configuration.take_source<SourceAddressMix::Any>(address_source, addresses.sources).template to<i32>();
-    return store_to_memory(configuration, memarg, { &value, sizeof(StoreT) }, base);
+    auto bytes = to_little_endian_bytes(value);
+    return store_to_memory(configuration, memarg, bytes.span(), base);
 }
 
 template<size_t N>
@@ -5573,6 +5599,15 @@ template<>
 double BytecodeInterpreter::read_value<double>(ReadonlyBytes data)
 {
     return bit_cast<double>(read_value<u64>(data));
+}
+
+template<>
+u128 BytecodeInterpreter::read_value<u128>(ReadonlyBytes data)
+{
+    // A v128 is stored little-endian as well; assemble it from two little-endian halves, since the
+    // generic byte-swap helper only handles values of up to 64 bits.
+    VERIFY(sizeof(u128) <= data.size());
+    return u128(read_value<u64>(data), read_value<u64>(data.slice(sizeof(u64))));
 }
 
 CompiledInstructions try_compile_instructions(Expression const& expression, Span<FunctionType const> functions)
