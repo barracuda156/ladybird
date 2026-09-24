@@ -39,5 +39,18 @@ else()
     pkg_check_modules(skia skia>=${SKIA_REQUIRED_VERSION} REQUIRED IMPORTED_TARGET skia)
     set(SKIA_TARGET PkgConfig::skia)
     set_property(TARGET PkgConfig::skia APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS "SKCMS_DLL")
+
+    # Ladybird includes Skia's public headers as <core/...>, while Skia's own headers use "include/core/...".
+    # Some installs (e.g. MacPorts: <prefix>/include/skia/include/core) put neither directory in skia.pc's Cflags.
+    find_path(SKIA_API_INCLUDE_DIR core/SkCanvas.h
+        HINTS ${skia_INCLUDE_DIRS}
+        PATH_SUFFIXES include skia/include skia)
+    if (SKIA_API_INCLUDE_DIR)
+        set_property(TARGET PkgConfig::skia APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${SKIA_API_INCLUDE_DIR}")
+        get_filename_component(SKIA_ROOT_INCLUDE_DIR "${SKIA_API_INCLUDE_DIR}" DIRECTORY)
+        if (EXISTS "${SKIA_ROOT_INCLUDE_DIR}/include/core/SkCanvas.h")
+            set_property(TARGET PkgConfig::skia APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${SKIA_ROOT_INCLUDE_DIR}")
+        endif()
+    endif()
 endif()
 add_library(skia ALIAS ${SKIA_TARGET})
