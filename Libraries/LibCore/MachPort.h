@@ -49,9 +49,12 @@ public:
         MakeSendOnce = MACH_MSG_TYPE_MAKE_SEND_ONCE,
 #if defined(AK_OS_MACOS)
         CopyReceive = MACH_MSG_TYPE_COPY_RECEIVE,
+#    if defined(MACH_MSG_TYPE_DISPOSE_RECEIVE)
+        // The dispose rights arrived in Mac OS X 10.7.
         DisposeReceive = MACH_MSG_TYPE_DISPOSE_RECEIVE,
         DisposeSend = MACH_MSG_TYPE_DISPOSE_SEND,
         DisposeSendOnce = MACH_MSG_TYPE_DISPOSE_SEND_ONCE,
+#    endif
 #endif
     };
 

@@ -36,12 +36,15 @@ static constexpr MachPort::PortRight associated_port_right(MachPort::MessageRigh
 
 #if defined(AK_OS_MACOS)
     case MachPort::MessageRight::CopyReceive:
+        return MachPort::PortRight::Receive;
+#    if defined(MACH_MSG_TYPE_DISPOSE_RECEIVE)
     case MachPort::MessageRight::DisposeReceive:
         return MachPort::PortRight::Receive;
     case MachPort::MessageRight::DisposeSend:
         return MachPort::PortRight::Send;
     case MachPort::MessageRight::DisposeSendOnce:
         return MachPort::PortRight::SendOnce;
+#    endif
 #endif
     }
     VERIFY_NOT_REACHED();

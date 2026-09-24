@@ -42,9 +42,16 @@ ErrorOr<void> update_process_statistics(ProcessStatistics& statistics)
     statistics.total_time_scheduled = total_cpu_ticks;
 
     for (auto& process : statistics.processes) {
+#if defined(MACH_TASK_BASIC_INFO)
         mach_task_basic_info_data_t basic_info {};
         count = MACH_TASK_BASIC_INFO_COUNT;
         res = task_info(process->child_task_port.port(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&basic_info), &count);
+#else
+        // MACH_TASK_BASIC_INFO arrived in Mac OS X 10.8; before that TASK_BASIC_INFO reports the same fields in vm_size_t.
+        task_basic_info_data_t basic_info {};
+        count = TASK_BASIC_INFO_COUNT;
+        res = task_info(process->child_task_port.port(), TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&basic_info), &count);
+#endif
         if (res != KERN_SUCCESS) {
             dbgln("Failed to get task info for pid {}: {}", process->pid, mach_error_string(res));
             return Core::mach_error_to_error(res);
