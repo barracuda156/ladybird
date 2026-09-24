@@ -61,8 +61,10 @@ elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
     # ISA or target string. Unfortunately hardware probing is also neither easy nor reliable at the moment.
     # For the time being use the defaults for the best compatibility with existing hardware and toolchains.
     # FIXME: Remove this branch once -march=native is supported.
-elseif (NOT CMAKE_CROSSCOMPILING)
-    # In all other cases, compile for the native architecture of the host system.
+elseif (NOT CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|i.86|aarch64|arm64|ARM64)$")
+    # On x86 and ARM hosts, compile for the native architecture of the host system. Other architectures
+    # (e.g. PowerPC, where GCC has no -march option at all) take their CPU flags from the toolchain or
+    # the package manager.
     add_cxx_compile_options(-march=native)
 endif()
 
@@ -78,7 +80,10 @@ add_cxx_compile_options(-Wno-invalid-offsetof)
 add_cxx_compile_options(-Wno-unknown-warning-option)
 add_cxx_compile_options(-Wno-unused-command-line-argument)
 
-add_cxx_compile_options(-Werror)
+option(LADYBIRD_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+if (LADYBIRD_WARNINGS_AS_ERRORS)
+    add_cxx_compile_options(-Werror)
+endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "18")
     add_cxx_compile_options(-Wpadded-bitfield)
@@ -89,8 +94,13 @@ if (NOT MSVC)
     add_cxx_compile_options(-fno-exceptions)
     add_cxx_compile_options(-ffp-contract=off)
     add_cxx_compile_options(-fstrict-flex-arrays=2)
-    add_cxx_compile_options(-fstack-protector-strong)
-    add_cxx_link_options(-fstack-protector-strong)
+    # Older C libraries (e.g. Mac OS X before 10.6) lack the stack-protector runtime.
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag(-fstack-protector-strong LAGOM_COMPILER_SUPPORTS_STACK_PROTECTOR)
+    if (LAGOM_COMPILER_SUPPORTS_STACK_PROTECTOR)
+        add_cxx_compile_options(-fstack-protector-strong)
+        add_cxx_link_options(-fstack-protector-strong)
+    endif()
     if (UNIX AND NOT APPLE AND NOT ENABLE_FUZZERS)
         add_cxx_compile_options(-fno-semantic-interposition)
         add_cxx_compile_options(-fvisibility-inlines-hidden)
@@ -175,6 +185,20 @@ elseif (MSVC)
     if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR "Debug")
         add_cxx_compile_options(-gcodeview-ghash)
         add_cxx_link_options(/DEBUG:GHASH)
+    endif()
+endif()
+
+# 32-bit targets without native 64-bit atomics (e.g. 32-bit PowerPC) need libatomic for Atomic<u64>.
+if (NOT MSVC)
+    include(CheckCXXSourceCompiles)
+    check_cxx_source_compiles("
+        #include <atomic>
+        #include <cstdint>
+        std::atomic<uint64_t> value;
+        int main() { return static_cast<int>(value.fetch_add(1)); }
+    " LAGOM_HAS_NATIVE_64BIT_ATOMICS)
+    if (NOT LAGOM_HAS_NATIVE_64BIT_ATOMICS)
+        link_libraries(atomic)
     endif()
 endif()
 

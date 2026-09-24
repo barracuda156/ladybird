@@ -29,11 +29,17 @@ endif()
 
 # See slide 100 of the following ppt :^)
 # https://crascit.com/wp-content/uploads/2019/09/Deep-CMake-For-Library-Authors-Craig-Scott-CppCon-2019.pdf
+# Package builds may pass absolute install names and rpaths on the command line; only fill in the
+# relocatable defaults when they did not.
 if (APPLE)
     set(CMAKE_MACOSX_RPATH TRUE)
-    set(CMAKE_INSTALL_NAME_DIR "@rpath")
-    set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
-else()
+    if (NOT DEFINED CMAKE_INSTALL_NAME_DIR)
+        set(CMAKE_INSTALL_NAME_DIR "@rpath")
+    endif()
+    if (NOT DEFINED CMAKE_INSTALL_RPATH)
+        set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
+    endif()
+elseif (NOT DEFINED CMAKE_INSTALL_RPATH)
     set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 endif()
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)

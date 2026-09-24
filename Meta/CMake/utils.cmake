@@ -57,8 +57,24 @@ function(invoke_generator_impl name generator primary_source header implementati
         )
     endif()
 
+    # The generators write their .tmp files next to the outputs; only the Ninja generator creates the
+    # output directories beforehand, so do it explicitly for the Makefile generators.
+    set(output_directories)
+    foreach (output IN ITEMS "${header}" "${implementation}" ${extra_outputs})
+        get_filename_component(output_directory "${output}" DIRECTORY)
+        if (output_directory)
+            list(APPEND output_directories "${output_directory}")
+        endif()
+    endforeach()
+    set(make_directory_command)
+    if (output_directories)
+        list(REMOVE_DUPLICATES output_directories)
+        set(make_directory_command COMMAND "${CMAKE_COMMAND}" -E make_directory ${output_directories})
+    endif()
+
     add_custom_command(
         OUTPUT "${header}" "${implementation}" ${extra_outputs}
+        ${make_directory_command}
         COMMAND ${invoke_generator_impl_command} ${generator}
                 -h "${header}.tmp"
                 -c "${implementation}.tmp"

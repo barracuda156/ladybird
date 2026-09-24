@@ -521,7 +521,8 @@ static constexpr StringView icu_number_format_field_to_string(i32 field, NumberF
         return is_unit ? "unit"sv : "percentSign"sv;
     case UNUM_SIGN_FIELD: {
         auto is_negative = value.visit(
-            [&](double number) { return signbit(number); },
+            // Older C libraries define signbit() as a macro yielding int; the visitor must deduce bool.
+            [&](double number) { return signbit(number) != 0; },
             [&](String const& number) { return number.starts_with('-'); });
         return is_negative ? "minusSign"sv : "plusSign"sv;
     }

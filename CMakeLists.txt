@@ -10,7 +10,7 @@ endif()
 # vcpkg flags depend on what linker we are using
 include("Meta/CMake/use_linker.cmake")
 
-if (APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+if (APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET AND NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET})
     set(CMAKE_OSX_DEPLOYMENT_TARGET 14.0)
 endif()
 
