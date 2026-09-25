@@ -27,8 +27,10 @@ NonnullOwnPtr<Core::EventLoop> Application::create_platform_event_loop()
     if (!browser_options().headless_mode.has_value()) {
         Core::EventLoopManager::install(*new EventLoopManagerGtk);
         adw_init();
-        m_adw_application = ADW_APPLICATION(adw_application_new("org.ladybird.Ladybird",
-            static_cast<GApplicationFlags>(G_APPLICATION_DEFAULT_FLAGS | G_APPLICATION_HANDLES_OPEN)));
+        int flags = G_APPLICATION_DEFAULT_FLAGS | G_APPLICATION_HANDLES_OPEN;
+        if (browser_options().force_new_process == WebView::ForceNewProcess::Yes)
+            flags |= G_APPLICATION_NON_UNIQUE;
+        m_adw_application = ADW_APPLICATION(adw_application_new("org.ladybird.Ladybird", static_cast<GApplicationFlags>(flags)));
         GError* error = nullptr;
         g_application_register(G_APPLICATION(m_adw_application), nullptr, &error);
         if (error) {
