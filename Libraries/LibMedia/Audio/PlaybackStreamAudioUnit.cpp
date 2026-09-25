@@ -117,7 +117,8 @@ private:
 template<typename T>
 static ErrorOr<CoreAudioPropertyValue<T>> get_audio_unit_property(AudioComponentInstance& instance, u32 property)
 {
-    u32 size = 0;
+    // NOTE: UInt32, not u32: the out-parameters are UInt32*, and UInt32 is unsigned long on 32-bit Darwin.
+    UInt32 size = 0;
     AU_TRY(AudioUnitGetPropertyInfo(
         instance,
         property,
@@ -393,25 +394,27 @@ NonnullRefPtr<Core::ThreadedPromise<void>> PlaybackStreamAudioUnit::set_volume(d
 }
 
 // This must be kept in the order defined by AudioChannelBitmap.
-#define ENUMERATE_CHANNEL_POSITIONS(C)          \
-    C(Left, Channel::FrontLeft)                 \
-    C(Right, Channel::FrontRight)               \
-    C(Center, Channel::FrontCenter)             \
-    C(LFEScreen, Channel::LowFrequency)         \
-    C(LeftSurround, Channel::BackLeft)          \
-    C(RightSurround, Channel::BackRight)        \
-    C(LeftCenter, Channel::FrontLeftOfCenter)   \
-    C(RightCenter, Channel::FrontRightOfCenter) \
-    C(CenterSurround, Channel::BackCenter)      \
-    C(LeftSurroundDirect, Channel::SideLeft)    \
-    C(RightSurroundDirect, Channel::SideRight)  \
-    C(TopCenterSurround, Channel::TopCenter)    \
-    C(TopBackLeft, Channel::TopBackLeft)        \
-    C(TopBackCenter, Channel::TopBackCenter)    \
-    C(TopBackRight, Channel::TopBackRight)      \
-    C(LeftTopFront, Channel::TopFrontLeft)      \
-    C(CenterTopFront, Channel::TopFrontCenter)  \
-    C(RightTopFront, Channel::TopFrontRight)
+// NOTE: Newer SDKs call the VerticalHeight* channels *TopFront, as aliases of the same values; only the
+//       original names exist in the Mac OS X 10.5 and 10.6 SDKs.
+#define ENUMERATE_CHANNEL_POSITIONS(C)               \
+    C(Left, Channel::FrontLeft)                      \
+    C(Right, Channel::FrontRight)                    \
+    C(Center, Channel::FrontCenter)                  \
+    C(LFEScreen, Channel::LowFrequency)              \
+    C(LeftSurround, Channel::BackLeft)               \
+    C(RightSurround, Channel::BackRight)             \
+    C(LeftCenter, Channel::FrontLeftOfCenter)        \
+    C(RightCenter, Channel::FrontRightOfCenter)      \
+    C(CenterSurround, Channel::BackCenter)           \
+    C(LeftSurroundDirect, Channel::SideLeft)         \
+    C(RightSurroundDirect, Channel::SideRight)       \
+    C(TopCenterSurround, Channel::TopCenter)         \
+    C(TopBackLeft, Channel::TopBackLeft)             \
+    C(TopBackCenter, Channel::TopBackCenter)         \
+    C(TopBackRight, Channel::TopBackRight)           \
+    C(VerticalHeightLeft, Channel::TopFrontLeft)     \
+    C(VerticalHeightCenter, Channel::TopFrontCenter) \
+    C(VerticalHeightRight, Channel::TopFrontRight)
 
 ErrorOr<ChannelMap> audio_channel_layout_to_channel_map(AudioChannelLayout const& channel_layout)
 {
@@ -461,7 +464,7 @@ ErrorOr<ChannelMap> audio_channel_layout_to_channel_map(AudioChannelLayout const
         if (channel_layout.mChannelLayoutTag == kAudioChannelLayoutTag_UseChannelDescriptions) {
             fill_channels_from_channel_descriptions(channel_layout);
         } else {
-            u32 explicit_layout_size = 0;
+            UInt32 explicit_layout_size = 0;
             AU_TRY(AudioFormatGetPropertyInfo(
                 kAudioFormatProperty_ChannelLayoutForTag,
                 sizeof(AudioChannelLayoutTag),

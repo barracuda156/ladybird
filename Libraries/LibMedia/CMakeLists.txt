@@ -49,6 +49,12 @@ elseif (LADYBIRD_AUDIO_BACKEND STREQUAL "AUDIO_UNIT")
     target_sources(LibMedia PRIVATE Audio/PlaybackStreamAudioUnit.cpp)
     find_library(AUDIO_TOOLBOX AudioToolbox REQUIRED)
     target_link_libraries(LibMedia PRIVATE ${AUDIO_TOOLBOX})
+    if (LADYBIRD_LEGACY_MACOS)
+        # Older macOS (at least through 10.6) exports the AudioUnit and AudioComponent functions from
+        # AudioUnit.framework; AudioToolbox only imports them.
+        find_library(AUDIO_UNIT_FRAMEWORK AudioUnit REQUIRED)
+        target_link_libraries(LibMedia PRIVATE ${AUDIO_UNIT_FRAMEWORK})
+    endif()
 elseif(LADYBIRD_AUDIO_BACKEND STREQUAL "WASAPI")
     target_sources(LibMedia PRIVATE Audio/PlaybackStreamWasapi.cpp)
     target_link_libraries(LibMedia PRIVATE ole32 avrt winmm)
