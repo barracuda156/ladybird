@@ -40,8 +40,12 @@ function(compile_ipc source output)
     add_custom_target(generate_${output_name} DEPENDS ${output})
     add_dependencies(ladybird_codegen_accumulator generate_${output_name})
 
-    cmake_path(RELATIVE_PATH CMAKE_CURRENT_SOURCE_DIR BASE_DIRECTORY ${SerenityOS_SOURCE_DIR} OUTPUT_VARIABLE current_source_dir_relative)
+    # Install the endpoint where it sits relative to the Lagom build directory, which mirrors the
+    # include roots (., Services, Libraries) that consumers of the installed package get.
+    cmake_path(ABSOLUTE_PATH output BASE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} NORMALIZE OUTPUT_VARIABLE output_path)
+    cmake_path(RELATIVE_PATH output_path BASE_DIRECTORY ${Lagom_BINARY_DIR} OUTPUT_VARIABLE output_relative_path)
+    cmake_path(GET output_relative_path PARENT_PATH output_relative_dir)
     if (ENABLE_INSTALL_HEADERS)
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${output} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${current_source_dir_relative}" OPTIONAL)
+        install(FILES ${output_path} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${output_relative_dir}" OPTIONAL)
     endif()
 endfunction()

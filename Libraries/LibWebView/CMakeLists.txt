@@ -79,17 +79,3 @@ endif()
 if (HAS_FONTCONFIG)
     target_link_libraries(LibWebView PRIVATE Fontconfig::Fontconfig)
 endif()
-
-if (ENABLE_INSTALL_HEADERS)
-    foreach(header ${GENERATED_SOURCES})
-        get_filename_component(extension ${header} EXT)
-        if (NOT "${extension}" STREQUAL ".h")
-            continue()
-        endif()
-
-        get_filename_component(subdirectory ${header} DIRECTORY)
-        string(REGEX REPLACE "^\\.\\./\\.\\./" "" subdirectory "${subdirectory}")
-
-        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${header}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${subdirectory}")
-    endforeach()
-endif()

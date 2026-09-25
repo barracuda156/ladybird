@@ -16,6 +16,9 @@ function(lagom_generate_export_header name fs_name)
     include(GenerateExportHeader)
     string(TOUPPER ${fs_name} fs_name_upper)
     generate_export_header(${name} EXPORT_MACRO_NAME ${fs_name_upper}_API EXPORT_FILE_NAME "Export.h")
+    if (ENABLE_INSTALL_HEADERS)
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Export.h" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${name}")
+    endif()
 endfunction()
 
 function(lagom_generate_dsym target_name)
@@ -81,6 +84,8 @@ function(lagom_lib target_name fs_name)
 
     if (NOT "${target_name}" STREQUAL "AK")
         target_link_libraries(${target_name} PRIVATE AK)
+        # Every installed header builds on AK's, so consumers of the package get its usage requirements.
+        target_link_libraries(${target_name} INTERFACE $<INSTALL_INTERFACE:AK>)
     endif()
 
     if (WIN32)

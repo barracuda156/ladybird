@@ -226,8 +226,40 @@ compile_ipc(${LADYBIRD_PROJECT_ROOT}/Services/WebContent/WebDriverClient.ipc Ser
 compile_ipc(${LADYBIRD_PROJECT_ROOT}/Services/WebContent/WebDriverServer.ipc Services/WebContent/WebDriverServerEndpoint.h)
 compile_ipc(${LADYBIRD_PROJECT_ROOT}/Services/WebContent/WebUIClient.ipc Services/WebContent/WebUIClientEndpoint.h)
 compile_ipc(${LADYBIRD_PROJECT_ROOT}/Services/WebContent/WebUIServer.ipc Services/WebContent/WebUIServerEndpoint.h)
+if (ENABLE_INSTALL_HEADERS)
+    # The generated RequestServer endpoints include this service header.
+    install(FILES "${LADYBIRD_PROJECT_ROOT}/Services/RequestServer/CacheLevel.h" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Services/RequestServer")
+endif()
 
 add_ladybird_subdirectory(Libraries)
+
+# The installed headers mean something else without the flags and definitions the libraries were
+# built with, which the build applies directory-wide. Hand them to consumers of the installed package
+# (e.g. a separately built frontend) through AK, which every Lagom library links in its interface.
+# The build tree itself is unaffected.
+target_compile_features(AK INTERFACE $<INSTALL_INTERFACE:cxx_std_23>)
+if (NOT MSVC)
+    target_compile_options(AK INTERFACE
+        $<INSTALL_INTERFACE:-fsigned-char>
+        $<INSTALL_INTERFACE:-ffp-contract=off>
+        $<INSTALL_INTERFACE:-fstrict-flex-arrays=2>
+    )
+endif()
+if (APPLE AND LADYBIRD_LEGACY_MACOS)
+    target_compile_definitions(AK INTERFACE $<INSTALL_INTERFACE:LADYBIRD_LEGACY_MACOS=1>)
+endif()
+if (HAS_VULKAN)
+    target_compile_definitions(AK INTERFACE $<INSTALL_INTERFACE:USE_VULKAN=1>)
+endif()
+if (USE_VULKAN_IMAGES)
+    target_compile_definitions(AK INTERFACE $<INSTALL_INTERFACE:USE_VULKAN_IMAGES=1>)
+endif()
+if (LINUX)
+    target_compile_definitions(AK INTERFACE $<INSTALL_INTERFACE:_FILE_OFFSET_BITS=64>)
+endif()
+if (DEFINED LAGOM_HAS_NATIVE_64BIT_ATOMICS AND NOT LAGOM_HAS_NATIVE_64BIT_ATOMICS)
+    target_link_libraries(AK INTERFACE $<INSTALL_INTERFACE:atomic>)
+endif()
 
 if (ENABLE_FUZZERS)
     add_subdirectory(Fuzzers)

@@ -98,8 +98,7 @@ list(FILTER generated_headers INCLUDE REGEX "\\.h$")
 list(TRANSFORM generated_headers PREPEND "${CMAKE_CURRENT_BINARY_DIR}/")
 
 if (ENABLE_INSTALL_HEADERS)
-    list(TRANSFORM generated_sources PREPEND "${CMAKE_CURRENT_BINARY_DIR}/")
-    install(FILES ${generated_sources} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/LibGfx/ImageFormats")
+    install(FILES ${generated_headers} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/LibGfx/ImageFormats")
 endif()
 
 # Third-party
