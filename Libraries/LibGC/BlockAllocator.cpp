@@ -28,6 +28,13 @@
 #    include <memoryapi.h>
 #endif
 
+// Kernels before 10.9 only apply MADV_FREE_REUSABLE and MADV_FREE_REUSE to regions whose maximum
+// protection is VM_PROT_ALL (vm_map_entry_is_reusable()); the blocks are mapped read/write only, so
+// both fail with ENOMEM there. Legacy macOS discards the pages with MADV_FREE instead.
+#if defined(MADV_FREE_REUSE) && defined(MADV_FREE_REUSABLE) && !defined(LADYBIRD_LEGACY_MACOS)
+#    define GC_USE_MADV_FREE_REUSABLE
+#endif
+
 namespace GC {
 
 BlockAllocator::~BlockAllocator()
@@ -56,7 +63,7 @@ void* BlockAllocator::allocate_block([[maybe_unused]] char const* name)
         auto* block = m_blocks.unstable_take(random_index);
         ASAN_UNPOISON_MEMORY_REGION(block, HeapBlock::BLOCK_SIZE);
         LSAN_REGISTER_ROOT_REGION(block, HeapBlock::BLOCK_SIZE);
-#if defined(MADV_FREE_REUSE) && defined(MADV_FREE_REUSABLE)
+#ifdef GC_USE_MADV_FREE_REUSABLE
         if (madvise(block, HeapBlock::BLOCK_SIZE, MADV_FREE_REUSE) < 0) {
             perror("madvise(MADV_FREE_REUSE)");
             VERIFY_NOT_REACHED();
@@ -103,7 +110,7 @@ void BlockAllocator::deallocate_block(void* block)
         warnln("{}", Error::from_windows_error(ret));
         VERIFY_NOT_REACHED();
     }
-#elif defined(MADV_FREE_REUSE) && defined(MADV_FREE_REUSABLE)
+#elif defined(GC_USE_MADV_FREE_REUSABLE)
     if (madvise(block, HeapBlock::BLOCK_SIZE, MADV_FREE_REUSABLE) < 0) {
         perror("madvise(MADV_FREE_REUSABLE)");
         VERIFY_NOT_REACHED();
