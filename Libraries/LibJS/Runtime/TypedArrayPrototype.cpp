@@ -477,6 +477,22 @@ JS_DEFINE_NATIVE_FUNCTION(TypedArrayPrototype::every)
 
 // NOTE: This function assumes that the index is valid within the TypedArray,
 //       and that the TypedArray is not detached.
+// Typed array elements are stored little-endian on every host: that is the isLittleEndian default of the
+// GetValueFromBuffer and SetValueInBuffer paths, and what WebAssembly memory and web content expect. The fast
+// paths below touch the buffer directly and have to agree with that on big-endian hosts.
+template<typename T>
+ALWAYS_INLINE static T swap_typed_array_element_on_big_endian_hosts(T value)
+{
+    if constexpr (AK::HostIsLittleEndian || sizeof(T) == 1)
+        return value;
+    else if constexpr (sizeof(T) == 2)
+        return bit_cast<T>(__builtin_bswap16(bit_cast<u16>(value)));
+    else if constexpr (sizeof(T) == 4)
+        return bit_cast<T>(__builtin_bswap32(bit_cast<u32>(value)));
+    else
+        return bit_cast<T>(__builtin_bswap64(bit_cast<u64>(value)));
+}
+
 template<typename T>
 inline void fast_typed_array_fill(TypedArrayBase& typed_array, u32 begin, u32 end, T value)
 {
@@ -499,6 +515,7 @@ inline void fast_typed_array_fill(TypedArrayBase& typed_array, u32 begin, u32 en
 
     auto& array_buffer = *typed_array.viewed_array_buffer();
     auto* slot = reinterpret_cast<T*>(array_buffer.buffer().offset_pointer(computed_begin.value()));
+    value = swap_typed_array_element_on_big_endian_hosts(value);
     for (auto i = begin; i < end; ++i)
         *(slot++) = value;
 }

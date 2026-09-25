@@ -911,6 +911,22 @@ GC::Ref<Bytecode::Executable> compile(VM& vm, GC::Ref<SharedFunctionInstanceData
     return bytecode_executable;
 }
 
+// Typed array elements are stored little-endian on every host: that is the isLittleEndian default of the
+// GetValueFromBuffer and SetValueInBuffer paths, and what WebAssembly memory and web content expect. The fast
+// paths below touch the buffer directly and have to agree with that on big-endian hosts.
+template<typename T>
+ALWAYS_INLINE static T swap_typed_array_element_on_big_endian_hosts(T value)
+{
+    if constexpr (AK::HostIsLittleEndian || sizeof(T) == 1)
+        return value;
+    else if constexpr (sizeof(T) == 2)
+        return bit_cast<T>(__builtin_bswap16(bit_cast<u16>(value)));
+    else if constexpr (sizeof(T) == 4)
+        return bit_cast<T>(__builtin_bswap32(bit_cast<u32>(value)));
+    else
+        return bit_cast<T>(__builtin_bswap64(bit_cast<u64>(value)));
+}
+
 // NOTE: This function assumes that the index is valid within the TypedArray,
 //       and that the TypedArray is not detached.
 template<typename T>
@@ -926,7 +942,7 @@ inline Value fast_typed_array_get_element(TypedArrayBase& typed_array, u32 index
 
     auto const& array_buffer = *typed_array.viewed_array_buffer();
     auto const* slot = reinterpret_cast<T const*>(array_buffer.buffer().offset_pointer(offset_into_array_buffer.value()));
-    return Value { *slot };
+    return Value { swap_typed_array_element_on_big_endian_hosts(*slot) };
 }
 
 // NOTE: This function assumes that the index is valid within the TypedArray,
@@ -944,7 +960,7 @@ inline void fast_typed_array_set_element(TypedArrayBase& typed_array, u32 index,
 
     auto& array_buffer = *typed_array.viewed_array_buffer();
     auto* slot = reinterpret_cast<T*>(array_buffer.buffer().offset_pointer(offset_into_array_buffer.value()));
-    *slot = value;
+    *slot = swap_typed_array_element_on_big_endian_hosts(value);
 }
 
 static COLD Completion throw_null_or_undefined_property_get(VM& vm, Value base_value, Optional<IdentifierTableIndex> base_identifier, IdentifierTableIndex property_identifier, Executable const& executable)
