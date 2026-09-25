@@ -239,7 +239,7 @@ void Tab::setup_callbacks()
         if (!m_tab_page)
             return;
         g_autoptr(GBytes) bytes = g_bytes_new(bitmap.scanline_u8(0), bitmap.size_in_bytes());
-        GObjectPtr texture { gdk_memory_texture_new(bitmap.width(), bitmap.height(), GDK_MEMORY_B8G8R8A8_PREMULTIPLIED, bytes, bitmap.pitch()) };
+        GObjectPtr texture { gdk_memory_texture_new(bitmap.width(), bitmap.height(), gdk_memory_format_for_bitmap(bitmap), bytes, bitmap.pitch()) };
         adw_tab_page_set_icon(m_tab_page, G_ICON(texture.ptr()));
     };
 

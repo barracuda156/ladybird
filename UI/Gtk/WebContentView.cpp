@@ -20,6 +20,27 @@
 
 namespace Ladybird {
 
+// A Gfx::BitmapFormat names the bytes in memory order (BGRA8888 is B, G, R, A, as Skia's
+// kBGRA_8888 and the image decoders write it), and so does a GdkMemoryFormat, so the
+// pixels are handed over unchanged on big-endian hosts as well.
+GdkMemoryFormat gdk_memory_format_for_bitmap(Gfx::Bitmap const& bitmap)
+{
+    auto premultiplied = bitmap.alpha_type() == Gfx::AlphaType::Premultiplied;
+
+    switch (bitmap.format()) {
+    case Gfx::BitmapFormat::BGRx8888:
+        return GDK_MEMORY_B8G8R8X8;
+    case Gfx::BitmapFormat::RGBx8888:
+        return GDK_MEMORY_R8G8B8X8;
+    case Gfx::BitmapFormat::RGBA8888:
+        return premultiplied ? GDK_MEMORY_R8G8B8A8_PREMULTIPLIED : GDK_MEMORY_R8G8B8A8;
+    case Gfx::BitmapFormat::BGRA8888:
+    case Gfx::BitmapFormat::Invalid:
+        break;
+    }
+    return premultiplied ? GDK_MEMORY_B8G8R8A8_PREMULTIPLIED : GDK_MEMORY_B8G8R8A8;
+}
+
 WebContentView::WebContentView(LadybirdWebView* widget, RefPtr<WebView::WebContentClient> parent_client, size_t page_index)
     : m_widget(widget)
 {
@@ -169,7 +190,7 @@ void WebContentView::paint(GtkSnapshot* snapshot)
             gdk_memory_texture_builder_set_stride(GDK_MEMORY_TEXTURE_BUILDER(builder.ptr()), bitmap->pitch());
             gdk_memory_texture_builder_set_width(GDK_MEMORY_TEXTURE_BUILDER(builder.ptr()), painted_width);
             gdk_memory_texture_builder_set_height(GDK_MEMORY_TEXTURE_BUILDER(builder.ptr()), painted_height);
-            gdk_memory_texture_builder_set_format(GDK_MEMORY_TEXTURE_BUILDER(builder.ptr()), GDK_MEMORY_B8G8R8A8_PREMULTIPLIED);
+            gdk_memory_texture_builder_set_format(GDK_MEMORY_TEXTURE_BUILDER(builder.ptr()), gdk_memory_format_for_bitmap(*bitmap));
 
             if (m_cached_texture.ptr()) {
                 gdk_memory_texture_builder_set_update_texture(GDK_MEMORY_TEXTURE_BUILDER(builder.ptr()), m_cached_texture);

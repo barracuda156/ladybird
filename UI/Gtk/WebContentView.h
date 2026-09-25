@@ -16,6 +16,8 @@
 
 namespace Ladybird {
 
+GdkMemoryFormat gdk_memory_format_for_bitmap(Gfx::Bitmap const&);
+
 class WebContentView final : public WebView::ViewImplementation {
 public:
     WebContentView(LadybirdWebView* widget, RefPtr<WebView::WebContentClient> parent_client = nullptr, size_t page_index = 0);
