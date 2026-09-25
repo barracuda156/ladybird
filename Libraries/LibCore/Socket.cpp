@@ -85,8 +85,9 @@ ErrorOr<Vector<Variant<IPv4Address, IPv6Address>>> Socket::resolve_host(ByteStri
 
         if (result.ai_family == AF_INET) {
             auto* socket_address = bit_cast<struct sockaddr_in*>(result.ai_addr);
-            NetworkOrdered<u32> const network_ordered_address { socket_address->sin_addr.s_addr };
-            addresses.append(IPv4Address { network_ordered_address });
+            // s_addr holds the octets in network order, while IPv4Address keeps the first octet in its low byte on
+            // every host; going through the octets keeps big-endian hosts from reversing the address.
+            addresses.append(IPv4Address { bit_cast<u8 const*>(&socket_address->sin_addr.s_addr) });
         }
     }
 

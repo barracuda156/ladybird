@@ -107,7 +107,10 @@ sockaddr_in SocketAddress::to_sockaddr_in() const
     sockaddr_in address {};
     address.sin_family = AF_INET;
     address.sin_port = htons(port());
-    address.sin_addr.s_addr = ipv4_address().to_in_addr_t();
+    // Byte by byte: to_in_addr_t() is only in network order on little-endian hosts.
+    auto const ipv4 = ipv4_address();
+    u8 const octets[4] = { ipv4[0], ipv4[1], ipv4[2], ipv4[3] };
+    memcpy(&address.sin_addr.s_addr, octets, sizeof(octets));
     return address;
 }
 

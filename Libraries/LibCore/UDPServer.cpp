@@ -87,7 +87,7 @@ Optional<IPv4Address> UDPServer::local_address() const
     if (getsockname(m_fd, (sockaddr*)&address, &len) != 0)
         return {};
 
-    return IPv4Address(address.sin_addr.s_addr);
+    return IPv4Address(bit_cast<u8 const*>(&address.sin_addr.s_addr));
 }
 
 Optional<u16> UDPServer::local_port() const
