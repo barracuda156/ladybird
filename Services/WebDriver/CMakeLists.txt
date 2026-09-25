@@ -18,3 +18,10 @@ target_link_libraries(WebDriver PRIVATE OpenSSL::Crypto OpenSSL::SSL)
 if (WIN32)
     lagom_windows_bin(WebDriver)
 endif()
+
+# Next to the browser, which WebDriver then finds as prefix/bin/Ladybird.
+install(TARGETS WebDriver
+    RUNTIME
+        COMPONENT ladybird_Runtime
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
