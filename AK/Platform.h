@@ -298,6 +298,29 @@
 #    define CLOCK_REALTIME_COARSE CLOCK_REALTIME
 #endif
 
+// With GCC on macOS the C++ library is libstdc++, whose <math.h> puts the C++ overloads (floor(float),
+// isnan(), ...) into the global namespace. MacPorts' legacy-support <math.h> bypasses that wrapper for
+// SDKs older than 10.7, leaving only the C functions and the classification macros, which <cmath> then
+// #undefs: unqualified isnan() stops compiling once <cmath> is included, and floor(float) returns double.
+// Declare what the wrapper would have.
+#if defined(AK_OS_MACOS) && defined(AK_COMPILER_GCC)
+#    include <cmath>
+using std::abs, std::acos, std::asin, std::atan, std::atan2, std::ceil, std::cos, std::cosh, std::exp, std::fabs,
+    std::floor, std::fmod, std::frexp, std::ldexp, std::log, std::log10, std::modf, std::pow, std::sin, std::sinh,
+    std::sqrt, std::tan, std::tanh;
+#    if _GLIBCXX_USE_C99_MATH
+using std::fpclassify, std::isfinite, std::isgreater, std::isgreaterequal, std::isinf, std::isless, std::islessequal,
+    std::islessgreater, std::isnan, std::isnormal, std::isunordered, std::signbit;
+#    endif
+#    if defined(_GLIBCXX_USE_C99_MATH_FUNCS)
+using std::acosh, std::asinh, std::atanh, std::cbrt, std::copysign, std::erf, std::erfc, std::exp2, std::expm1,
+    std::fdim, std::fma, std::fmax, std::fmin, std::hypot, std::ilogb, std::lgamma, std::llrint, std::llround,
+    std::log1p, std::log2, std::logb, std::lrint, std::lround, std::nearbyint, std::nextafter, std::nexttoward,
+    std::remainder, std::remquo, std::rint, std::round, std::scalbln, std::scalbn, std::tgamma, std::trunc;
+#    endif
+using std::lerp;
+#endif
+
 #ifndef AK_SYSTEM_CACHE_ALIGNMENT_SIZE
 #    define AK_SYSTEM_CACHE_ALIGNMENT_SIZE __GCC_DESTRUCTIVE_SIZE
 #endif
