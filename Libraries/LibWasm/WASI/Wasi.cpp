@@ -1141,8 +1141,10 @@ Errno errno_value_from_errno(int value)
         return Errno::NotDirectory;
     case ENOTEMPTY:
         return Errno::NotEmpty;
+#ifdef ENOTRECOVERABLE
     case ENOTRECOVERABLE:
         return Errno::NotRecoverable;
+#endif
     case ENOTSOCK:
         return Errno::NotSocket;
     case ENOTSUP:
