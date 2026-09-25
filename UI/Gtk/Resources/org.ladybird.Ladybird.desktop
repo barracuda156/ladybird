@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Ladybird
+GenericName=Web Browser
+Exec=ladybird-gtk %U
+Icon=org.ladybird.Ladybird
+Type=Application
+Categories=Network;WebBrowser;GTK;
+StartupNotify=true
+MimeType=text/html;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
