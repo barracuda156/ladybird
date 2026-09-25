@@ -10,6 +10,7 @@
 #include <AK/Vector.h>
 #include <LibJS/Runtime/ArrayBuffer.h>
 #include <LibJS/Runtime/TypedArray.h>
+#include <LibJS/Runtime/TypedArrayElementOrder.h>
 #include <LibWeb/Bindings/AnalyserNodePrototype.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/WebAudio/AnalyserNode.h>
@@ -155,7 +156,7 @@ WebIDL::ExceptionOr<void> AnalyserNode::get_float_frequency_data(GC::Root<WebIDL
 
     size_t floats_to_write = min(output_array.data().size(), frequency_bin_count());
     for (size_t i = 0; i < floats_to_write; i++) {
-        output_array.data()[i] = frequency_data[i];
+        output_array.data()[i] = JS::convert_between_host_and_typed_array_order(frequency_data[i]);
     }
 
     return {};
@@ -220,7 +221,7 @@ WebIDL::ExceptionOr<void> AnalyserNode::get_float_time_domain_data(GC::Root<WebI
 
     size_t floats_to_write = min(output_array.data().size(), frequency_bin_count());
     for (size_t i = 0; i < floats_to_write; i++) {
-        output_array.data()[i] = time_domain_data[i];
+        output_array.data()[i] = JS::convert_between_host_and_typed_array_order(time_domain_data[i]);
     }
 
     return {};

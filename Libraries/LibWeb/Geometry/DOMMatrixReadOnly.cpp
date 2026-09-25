@@ -7,6 +7,7 @@
  */
 
 #include <LibJS/Runtime/TypedArray.h>
+#include <LibJS/Runtime/TypedArrayElementOrder.h>
 #include <LibWeb/Bindings/DOMMatrixReadOnlyPrototype.h>
 #include <LibWeb/CSS/ComputedProperties.h>
 #include <LibWeb/CSS/Parser/Parser.h>
@@ -237,7 +238,12 @@ WebIDL::ExceptionOr<GC::Ref<DOMMatrixReadOnly>> DOMMatrixReadOnly::from_float32_
 
     auto& realm = *vm.current_realm();
     auto& float32_array = static_cast<JS::Float32Array&>(*array32->raw_object());
-    ReadonlySpan<float> elements = float32_array.data();
+    // Typed array elements are stored little-endian; bring them into host order.
+    Vector<float, 16> elements;
+    if (auto data = float32_array.data(); data.size() == 6 || data.size() == 16) {
+        for (auto element : data)
+            elements.append(JS::convert_between_host_and_typed_array_order(element));
+    }
 
     // If array32 has 6 elements, return the result of invoking create a 2d matrix of type DOMMatrixReadOnly or DOMMatrix as appropriate, with a sequence of numbers taking the values from array32 in the provided order.
     if (elements.size() == 6)
@@ -262,7 +268,12 @@ WebIDL::ExceptionOr<GC::Ref<DOMMatrixReadOnly>> DOMMatrixReadOnly::from_float64_
 
     auto& realm = *vm.current_realm();
     auto& float64_array = static_cast<JS::Float64Array&>(*array64->raw_object());
-    ReadonlySpan<double> elements = float64_array.data();
+    // Typed array elements are stored little-endian; bring them into host order.
+    Vector<double, 16> elements;
+    if (auto data = float64_array.data(); data.size() == 6 || data.size() == 16) {
+        for (auto element : data)
+            elements.append(JS::convert_between_host_and_typed_array_order(element));
+    }
 
     // If array64 has 6 elements, return the result of invoking create a 2d matrix of type DOMMatrixReadOnly or DOMMatrix as appropriate, with a sequence of numbers taking the values from array64 in the provided order.
     if (elements.size() == 6)
@@ -534,6 +545,8 @@ GC::Ref<JS::Float32Array> DOMMatrixReadOnly::to_float32_array() const
         static_cast<float>(m21()), static_cast<float>(m22()), static_cast<float>(m23()), static_cast<float>(m24()),
         static_cast<float>(m31()), static_cast<float>(m32()), static_cast<float>(m33()), static_cast<float>(m34()),
         static_cast<float>(m41()), static_cast<float>(m42()), static_cast<float>(m43()), static_cast<float>(m44()) };
+    for (auto& element : elements)
+        element = JS::convert_between_host_and_typed_array_order(element);
     auto bytes = MUST(ByteBuffer::copy(elements, sizeof(elements)));
     auto array_buffer = JS::ArrayBuffer::create(realm(), move(bytes));
     return JS::Float32Array::create(realm(), sizeof(elements) / sizeof(float), array_buffer);
@@ -547,6 +560,8 @@ GC::Ref<JS::Float64Array> DOMMatrixReadOnly::to_float64_array() const
         m21(), m22(), m23(), m24(),
         m31(), m32(), m33(), m34(),
         m41(), m42(), m43(), m44() };
+    for (auto& element : elements)
+        element = JS::convert_between_host_and_typed_array_order(element);
     auto bytes = MUST(ByteBuffer::copy(elements, sizeof(elements)));
     auto array_buffer = JS::ArrayBuffer::create(realm(), move(bytes));
     return JS::Float64Array::create(realm(), sizeof(elements) / sizeof(double), array_buffer);

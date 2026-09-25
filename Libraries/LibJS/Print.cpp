@@ -56,6 +56,7 @@
 #include <LibJS/Runtime/Temporal/PlainYearMonth.h>
 #include <LibJS/Runtime/Temporal/ZonedDateTime.h>
 #include <LibJS/Runtime/TypedArray.h>
+#include <LibJS/Runtime/TypedArrayElementOrder.h>
 #include <LibJS/Runtime/Value.h>
 #include <LibJS/Runtime/WeakMap.h>
 #include <LibJS/Runtime/WeakRef.h>
@@ -482,7 +483,7 @@ ErrorOr<void> print_typed_array(JS::PrintContext& print_context, JS::TypedArrayB
         for (size_t i = 0; i < length; ++i) {                                            \
             if (i > 0)                                                                   \
                 TRY(js_out(print_context, ", "));                                        \
-            TRY(print_number(print_context, data[i]));                                   \
+            TRY(print_number(print_context, JS::convert_between_host_and_typed_array_order(data[i]))); \
             if (++printed_count > 100 && i < length) {                                   \
                 TRY(js_out(print_context, ", ..."));                                     \
                 break;                                                                   \

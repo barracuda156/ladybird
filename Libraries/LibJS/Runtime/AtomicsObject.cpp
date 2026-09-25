@@ -20,6 +20,7 @@
 #include <LibJS/Runtime/AtomicsObject.h>
 #include <LibJS/Runtime/GlobalObject.h>
 #include <LibJS/Runtime/TypedArray.h>
+#include <LibJS/Runtime/TypedArrayElementOrder.h>
 #include <LibJS/Runtime/Value.h>
 #include <LibJS/Runtime/ValueInlines.h>
 
@@ -210,9 +211,12 @@ static ThrowCompletionOr<Value> perform_atomic_operation(VM& vm, TypedArrayBase&
         } else {
             using U = Conditional<IsSame<ClampedU8, T>, u8, T>;
 
-            auto* x = reinterpret_cast<U*>(x_bytes.data());
-            auto* y = reinterpret_cast<U*>(y_bytes.data());
-            operation(x, *y);
+            // Both operands arrive in the buffer's little-endian storage order; add and sub need them in host order.
+            auto* x_storage = reinterpret_cast<U*>(x_bytes.data());
+            U x = convert_between_host_and_typed_array_order(*x_storage);
+            U y = convert_between_host_and_typed_array_order(*reinterpret_cast<U*>(y_bytes.data()));
+            operation(&x, y);
+            *x_storage = convert_between_host_and_typed_array_order(x);
 
             return x_bytes;
         }
@@ -326,7 +330,9 @@ static ThrowCompletionOr<Value> atomic_compare_exchange_impl(VM& vm, TypedArrayB
     // 8. Let elementSize be TypedArrayElementSize(typedArray).
 
     // 9. Let isLittleEndian be the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-    static constexpr bool is_little_endian = AK::HostIsLittleEndian;
+    // NB: Typed arrays are stored little-endian on every host (see TypedArrayElementOrder.h), so the expected and
+    //     replacement bytes have to be too, or the comparison with the stored bytes fails on big-endian hosts.
+    static constexpr bool is_little_endian = true;
 
     // 10. Let expectedBytes be NumericToRawBytes(elementType, expected, isLittleEndian).
     auto expected_bytes = MUST(ByteBuffer::create_uninitialized(sizeof(T)));
