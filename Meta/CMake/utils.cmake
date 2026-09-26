@@ -87,6 +87,22 @@ function(invoke_generator_impl name generator primary_source header implementati
         DEPENDS ${generator} ${invoke_generator_impl_dependencies} "${primary_source}"
     )
 
+    # Generated headers are part of the installed API like the ones in the source tree (CSS/Length.h includes the
+    # generated CSS/Units.h, for example), so install each one where its library's source headers go.
+    if (ENABLE_INSTALL_HEADERS)
+        foreach (generated_header IN ITEMS "${header}" ${extra_outputs})
+            cmake_path(ABSOLUTE_PATH generated_header BASE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" NORMALIZE OUTPUT_VARIABLE generated_header_path)
+            set(generated_header_base "${Lagom_BINARY_DIR}/Libraries")
+            cmake_path(IS_PREFIX generated_header_base "${generated_header_path}" NORMALIZE generated_header_in_libraries)
+            if (NOT generated_header_in_libraries)
+                set(generated_header_base "${Lagom_BINARY_DIR}")
+            endif()
+            cmake_path(RELATIVE_PATH generated_header_path BASE_DIRECTORY "${generated_header_base}" OUTPUT_VARIABLE generated_header_relative_path)
+            cmake_path(GET generated_header_relative_path PARENT_PATH generated_header_relative_dir)
+            install(FILES "${generated_header_path}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${generated_header_relative_dir}")
+        endforeach()
+    endif()
+
     add_custom_target("generate_${name}" DEPENDS
         "${header}" "${implementation}" ${extra_outputs})
     add_dependencies(ladybird_codegen_accumulator "generate_${name}")
