@@ -118,7 +118,8 @@ ErrorOr<NonnullRefPtr<Gfx::Typeface>> try_load_from_bytes(ReadonlyBytes buffer, 
     // (The value 0x74727565 'true' has been used for some TrueType-flavored fonts on Mac OS, for example.)
     // Whether client software will actually support other types of sfnt font data is outside the scope of the WOFF specification, which simply describes how the sfnt is repackaged for Web use.
 
-    auto expected_total_sfnt_size = sizeof(TableDirectory) + header.num_tables * 16;
+    // NB: The table fields are u32; sums of them are done in u64 so they cannot wrap where size_t is 32-bit.
+    u64 expected_total_sfnt_size = sizeof(TableDirectory) + header.num_tables * 16;
     if (header.length > buffer.size())
         return Error::from_string_literal("Invalid WOFF length");
     if (header.num_tables == 0 || header.num_tables > NumericLimits<u16>::max() / 16)
@@ -151,12 +152,12 @@ ErrorOr<NonnullRefPtr<Gfx::Typeface>> try_load_from_bytes(ReadonlyBytes buffer, 
     for (size_t i = 0; i < header.num_tables; ++i) {
         auto entry = TRY(stream.read_value<TableDirectoryEntry>());
 
-        expected_total_sfnt_size += (entry.orig_length + 3) & 0xFFFFFFFC;
+        expected_total_sfnt_size += (static_cast<u64>(entry.orig_length) + 3) & ~static_cast<u64>(3);
         if (expected_total_sfnt_size > header.total_sfnt_size)
             return Error::from_string_literal("Invalid WOFF total sfnt size");
-        if ((size_t)entry.offset + entry.comp_length > header.length)
+        if (static_cast<u64>(entry.offset) + entry.comp_length > header.length)
             return Error::from_string_literal("Truncated WOFF table");
-        if (font_buffer_offset + entry.orig_length > font_buffer.size())
+        if (static_cast<u64>(font_buffer_offset) + entry.orig_length > font_buffer.size())
             return Error::from_string_literal("Uncompressed WOFF table too big");
         if (entry.comp_length < entry.orig_length) {
             auto compressed_data_stream = make<FixedMemoryStream>(buffer.slice(entry.offset, entry.comp_length));
