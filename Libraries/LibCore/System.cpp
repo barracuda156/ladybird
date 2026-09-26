@@ -712,7 +712,8 @@ unsigned hardware_concurrency()
 
 u64 physical_memory_bytes()
 {
-    return sysconf(_SC_PHYS_PAGES) * PAGE_SIZE;
+    // NB: sysconf() returns a long, which is 32-bit on 32-bit hosts; multiply in u64.
+    return static_cast<u64>(sysconf(_SC_PHYS_PAGES)) * PAGE_SIZE;
 }
 
 ErrorOr<ByteString> current_executable_path()

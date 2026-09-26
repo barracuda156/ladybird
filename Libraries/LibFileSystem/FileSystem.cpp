@@ -387,8 +387,9 @@ ErrorOr<DiskSpace> compute_disk_space(LexicalPath const& path)
         return Error::from_syscall("statvfs"sv, errno);
 
     return DiskSpace {
-        .free_bytes = stats.f_bavail * stats.f_frsize,
-        .total_bytes = stats.f_blocks * stats.f_frsize,
+        // NB: fsblkcnt_t and f_frsize can both be 32-bit (e.g. on 32-bit macOS); multiply in u64.
+        .free_bytes = static_cast<u64>(stats.f_bavail) * stats.f_frsize,
+        .total_bytes = static_cast<u64>(stats.f_blocks) * stats.f_frsize,
     };
 #endif
 }
