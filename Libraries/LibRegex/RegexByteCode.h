@@ -299,16 +299,17 @@ struct REGEX_API StringSetTable {
 };
 
 struct ByteCodeBase {
-    FlyString get_string(size_t index) const { return m_string_table.get(index); }
+    // String table indices are (serial << 32 | index); keep them 64-bit on 32-bit hosts as well.
+    FlyString get_string(ByteCodeValueType index) const { return m_string_table.get(index); }
     auto const& string_table() const { return m_string_table; }
 
-    auto get_u16_string(size_t index) const { return m_u16_string_table.get(index); }
+    auto get_u16_string(ByteCodeValueType index) const { return m_u16_string_table.get(index); }
     auto const& u16_string_table() const { return m_u16_string_table; }
 
     auto const& string_set_table() const { return m_string_set_table; }
     auto& string_set_table() { return m_string_set_table; }
 
-    Optional<size_t> get_group_name_index(size_t group_index) const
+    Optional<ByteCodeValueType> get_group_name_index(size_t group_index) const
     {
         return m_group_name_mappings.get(group_index);
     }
@@ -317,7 +318,7 @@ protected:
     StringTable<FlyString> m_string_table;
     StringTable<Utf16FlyString> m_u16_string_table;
     StringSetTable m_string_set_table;
-    HashMap<size_t, size_t> m_group_name_mappings;
+    HashMap<size_t, ByteCodeValueType> m_group_name_mappings;
 };
 
 class REGEX_API ByteCode : public ByteCodeBase
@@ -1330,7 +1331,7 @@ public:
     ALWAYS_INLINE OpCodeId opcode_id() const override { return OpCodeId::SaveRightNamedCaptureGroup; }
     ALWAYS_INLINE size_t size() const override { return 3; }
     ALWAYS_INLINE FlyString name() const { return bytecode().get_string(name_string_table_index()); }
-    ALWAYS_INLINE size_t name_string_table_index() const { return argument(0); }
+    ALWAYS_INLINE ByteCodeValueType name_string_table_index() const { return argument(0); }
     ALWAYS_INLINE size_t length() const { return name().bytes_as_string_view().length(); }
     ALWAYS_INLINE size_t id() const { return argument(1); }
     ByteString arguments_string() const override

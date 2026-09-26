@@ -425,7 +425,7 @@ public:
     {
     }
 
-    Match(RegexStringView const view_, size_t capture_group_name_, size_t const line_, size_t const column_, size_t const global_offset_)
+    Match(RegexStringView const view_, i64 capture_group_name_, size_t const line_, size_t const column_, size_t const global_offset_)
         : view(view_)
         , capture_group_name(capture_group_name_)
         , line(line_)
@@ -448,7 +448,8 @@ public:
     RegexStringView view {};
 
     // This is a string table index. -1 if none. Not using Optional to keep the struct trivially copyable.
-    ssize_t capture_group_name { -1 };
+    // String table indices are (serial << 32 | index), so this is 64-bit even where ssize_t is not.
+    i64 capture_group_name { -1 };
 
     size_t line { 0 };
     size_t column { 0 };
