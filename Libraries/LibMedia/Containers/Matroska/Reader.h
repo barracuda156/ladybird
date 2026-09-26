@@ -71,7 +71,8 @@ private:
     Optional<EBMLHeader> m_header;
 
     size_t m_segment_contents_position { 0 };
-    size_t m_segment_contents_size { 0 };
+    // NB: u64 even where size_t is 32-bit: an unknown-size segment reads as 2^56 - 1, and position + size must not wrap.
+    u64 m_segment_contents_size { 0 };
 
     HashMap<u32, size_t> m_seek_entries;
     size_t m_last_top_level_element_position { 0 };
