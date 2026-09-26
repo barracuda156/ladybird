@@ -492,7 +492,8 @@ public:
                     copied_list.append(entry.value);
                 }
 
-                serialized.encode(map->map_size());
+                // NB: Decoded as u64; map_size() is a size_t, which is only 4 bytes on 32-bit hosts.
+                serialized.encode(static_cast<u64>(map->map_size()));
 
                 // 3. For each Record { [[Key]], [[Value]] } entry of copiedList:
                 for (auto copied_value : copied_list) {
@@ -517,7 +518,8 @@ public:
                     copied_list.append(entry.key);
                 }
 
-                serialized.encode(set->set_size());
+                // NB: Decoded as u64; set_size() is a size_t, which is only 4 bytes on 32-bit hosts.
+                serialized.encode(static_cast<u64>(set->set_size()));
 
                 // 3. For each entry of copiedList:
                 for (auto copied_value : copied_list) {
