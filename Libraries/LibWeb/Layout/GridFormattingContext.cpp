@@ -1088,7 +1088,7 @@ void GridFormattingContext::increase_sizes_to_accommodate_spanning_items_crossin
                 // https://drafts.csswg.org/css-grid-2/#min-size-auto
                 // A grid item's automatic minimum size is zero if its computed overflow is a scrollable
                 // overflow value. Preserve that zero minimum for collapsed zero-flex tracks.
-                if (total_flex == 0 && item.box.is_scroll_container())
+                if (total_flex == 0 && item.box->is_scroll_container())
                     return calculate_minimum_contribution(item, dimension);
                 return calculate_limited_min_content_contribution(item, dimension);
             }
