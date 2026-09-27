@@ -32,10 +32,12 @@ ALWAYS_INLINE constexpr T convert_between_host_and_little_endian(T value)
 {
     if constexpr (HostIsLittleEndian || sizeof(T) == 1)
         return value;
-    else if constexpr (IsFloatingPoint<T>)
+    else if constexpr (IsFloatingPoint<T>) {
         // Swap the bit pattern, not the numeric value.
-        return bit_cast<T>(convert_between_host_and_little_endian(bit_cast<Conditional<sizeof(T) == 4, u32, u64>>(value)));
-    else if constexpr (sizeof(T) == 16) {
+        static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8, "Cannot byte-swap a floating point value of this size");
+        using Bits = Conditional<sizeof(T) == 2, u16, Conditional<sizeof(T) == 4, u32, u64>>;
+        return bit_cast<T>(convert_between_host_and_little_endian(bit_cast<Bits>(value)));
+    } else if constexpr (sizeof(T) == 16) {
         // Multi-word integers keep their words in ascending significance on every host, so only the
         // bytes within each word change place.
         auto words = bit_cast<Array<NativeWord, 16 / sizeof(NativeWord)>>(value);
@@ -57,9 +59,11 @@ ALWAYS_INLINE constexpr T convert_between_host_and_big_endian(T value)
 {
     if constexpr (sizeof(T) == 1 || !HostIsLittleEndian)
         return value;
-    else if constexpr (IsFloatingPoint<T>)
-        return bit_cast<T>(convert_between_host_and_big_endian(bit_cast<Conditional<sizeof(T) == 4, u32, u64>>(value)));
-    else if constexpr (sizeof(T) == 16) {
+    else if constexpr (IsFloatingPoint<T>) {
+        static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8, "Cannot byte-swap a floating point value of this size");
+        using Bits = Conditional<sizeof(T) == 2, u16, Conditional<sizeof(T) == 4, u32, u64>>;
+        return bit_cast<T>(convert_between_host_and_big_endian(bit_cast<Bits>(value)));
+    } else if constexpr (sizeof(T) == 16) {
         auto words = bit_cast<Array<NativeWord, 16 / sizeof(NativeWord)>>(value);
         for (auto& word : words)
             word = convert_between_host_and_big_endian(word);
