@@ -59,8 +59,11 @@ public:
     template<typename U = T>
     WeakPtr<U> make_weak_ptr() const
     {
-        if (!m_link)
-            m_link = adopt_ref(*new (nothrow) WeakLink(const_cast<T&>(static_cast<T const&>(*this))));
+        if (!m_link) {
+            auto* link = new (nothrow) WeakLink(const_cast<T&>(static_cast<T const&>(*this)));
+            VERIFY(link);
+            m_link = adopt_ref(*link);
+        }
 
         return m_link;
     }
