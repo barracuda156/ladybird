@@ -165,15 +165,15 @@ bool BookmarksBar::handle_right_mouse_click(QMouseEvent* event, QObject* item)
         m_selected_bookmark_menu_item_id = {};
         m_selected_bookmark_menu_target_folder_id = {};
 
-        bookmarks_bar_context_menu().exec(event->globalPosition().toPoint());
+        bookmarks_bar_context_menu().exec(event->globalPos());
     } else if (auto* button = as_if<QToolButton>(item)) {
         auto* action = button->defaultAction();
         extract_item_properties(action);
 
         if (m_selected_bookmark_menu_item_type == "bookmark")
-            bookmark_context_menu().exec(event->globalPosition().toPoint());
+            bookmark_context_menu().exec(event->globalPos());
         else if (m_selected_bookmark_menu_item_type == "folder")
-            bookmark_folder_context_menu().exec(event->globalPosition().toPoint());
+            bookmark_folder_context_menu().exec(event->globalPos());
     } else if (auto* menu = as_if<QMenu>(item)) {
         if (auto* action = menu->actionAt(event->pos())) {
             QObject* submenu = action->menu();
@@ -193,7 +193,7 @@ bool BookmarksBar::handle_right_mouse_click(QMouseEvent* event, QObject* item)
         else if (m_selected_bookmark_menu_item_type == "folder")
             repopulate_application_menu(context_menu, context_menu, WebView::Application::the().bookmark_folder_context_menu());
 
-        if (!context_menu.isEmpty() && context_menu.exec(event->globalPosition().toPoint()))
+        if (!context_menu.isEmpty() && context_menu.exec(event->globalPos()))
             menu->close();
     }
 

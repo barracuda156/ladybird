@@ -158,7 +158,6 @@ private:
 
     void set_window_rect(Optional<Web::DevicePixels> x, Optional<Web::DevicePixels> y, Optional<Web::DevicePixels> width, Optional<Web::DevicePixels> height);
 
-    QScreen* m_current_screen { nullptr };
     double m_device_pixel_ratio { 0 };
     double m_refresh_rate { 60.0 };
 

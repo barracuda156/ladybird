@@ -8,6 +8,7 @@
 
 #include <AK/StdLibExtras.h>
 #include <UI/Qt/Icon.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/Tab.h>
 #include <UI/Qt/TabBar.h>
 
@@ -84,7 +85,7 @@ void TabBar::mouseMoveEvent(QMouseEvent* event)
             pos.setX(boundary_limit_for_dragging_tab.width());
         else if (event->pos().x() < boundary_limit_for_dragging_tab.x())
             pos.setX(boundary_limit_for_dragging_tab.x());
-        QMouseEvent ev(event->type(), pos, event->globalPosition(), event->button(), event->buttons(), event->modifiers());
+        QMouseEvent ev(event->type(), pos, event->globalPos(), event->button(), event->buttons(), event->modifiers());
         QTabBar::mouseMoveEvent(&ev);
     }
 }
@@ -126,16 +127,18 @@ TabWidget::TabWidget(QWidget* parent)
     main_layout->addWidget(m_tab_bar_row);
     main_layout->addWidget(m_stacked_widget, 1);
 
-    connect(m_tab_bar, &QTabBar::currentChanged, this, [this](int index) {
+    Ladybird::connect(m_tab_bar, SIGNAL(currentChanged(int)), this, [this](int index) {
         if (index >= 0 && index < m_stacked_widget->count())
             m_stacked_widget->setCurrentIndex(index);
 
         emit current_tab_changed(index);
     });
 
-    connect(m_tab_bar, &QTabBar::tabCloseRequested, this, &TabWidget::tab_close_requested);
+    Ladybird::connect(m_tab_bar, SIGNAL(tabCloseRequested(int)), this, [this](int index) {
+        emit tab_close_requested(index);
+    });
 
-    connect(m_tab_bar, &QTabBar::tabMoved, this, [this](int from, int to) {
+    Ladybird::connect(m_tab_bar, SIGNAL(tabMoved(int, int)), this, [this](int from, int to) {
         ScopeGuard guard { [&]() { m_stacked_widget->blockSignals(false); } };
         m_stacked_widget->blockSignals(true);
 
@@ -180,12 +183,14 @@ int TabWidget::index_of(Tab* widget) const
 
 void TabWidget::set_new_tab_action(QAction* action)
 {
-    disconnect(m_new_tab_button, &QToolButton::clicked, nullptr, nullptr);
+    m_new_tab_button->disconnect(SIGNAL(clicked()));
 
     if (!action)
         return;
 
-    connect(m_new_tab_button, &QToolButton::clicked, action, &QAction::trigger);
+    Ladybird::connect(m_new_tab_button, SIGNAL(clicked()), action, [action] {
+        action->trigger();
+    });
 }
 
 bool TabWidget::event(QEvent* event)

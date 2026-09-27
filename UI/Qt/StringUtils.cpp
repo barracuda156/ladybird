@@ -26,7 +26,7 @@ String ak_string_from_qstring(QString const& qstring)
 
 QString qstring_from_ak_string(StringView ak_string)
 {
-    return QString::fromUtf8(ak_string.characters_without_null_termination(), static_cast<qsizetype>(ak_string.length()));
+    return QString::fromUtf8(ak_string.characters_without_null_termination(), static_cast<int>(ak_string.length()));
 }
 
 Utf16String utf16_string_from_qstring(QString const& string)
@@ -38,12 +38,12 @@ QString qstring_from_utf16_string(Utf16View const& string)
 {
     if (string.has_ascii_storage())
         return qstring_from_ak_string(string.bytes());
-    return QString::fromUtf16(string.utf16_span().data(), static_cast<qsizetype>(string.length_in_code_units()));
+    return QString::fromUtf16(reinterpret_cast<ushort const*>(string.utf16_span().data()), static_cast<int>(string.length_in_code_units()));
 }
 
 QByteArray qbytearray_from_ak_string(StringView ak_string)
 {
-    return { ak_string.characters_without_null_termination(), static_cast<qsizetype>(ak_string.length()) };
+    return { ak_string.characters_without_null_termination(), static_cast<int>(ak_string.length()) };
 }
 
 Optional<URL::URL> ak_url_from_qstring(QString const& qstring)

@@ -12,6 +12,7 @@
 #include <LibWebView/URL.h>
 #include <UI/Qt/Autocomplete.h>
 #include <UI/Qt/LocationEdit.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/StringUtils.h>
 
 #include <QApplication>
@@ -23,15 +24,18 @@
 
 namespace Ladybird {
 
+// Qt 4's QLatin1String has no size().
+static constexpr char const* s_web_schemes[] = { "https://", "http://" };
+
 static QString candidate_by_trimming_root_trailing_slash(QString const& candidate)
 {
     if (!candidate.endsWith(QLatin1Char('/')))
         return candidate;
 
     QString host_and_path = candidate;
-    for (auto scheme : { QLatin1String("https://"), QLatin1String("http://") }) {
-        if (host_and_path.startsWith(scheme)) {
-            host_and_path = host_and_path.mid(scheme.size());
+    for (auto const* scheme : s_web_schemes) {
+        if (host_and_path.startsWith(QLatin1String(scheme))) {
+            host_and_path = host_and_path.mid(qstrlen(scheme));
             break;
         }
     }
@@ -71,10 +75,10 @@ static QString inline_autocomplete_text_for_suggestion(QString const& query, QSt
             return match;
     }
 
-    for (auto scheme : { QLatin1String("https://"), QLatin1String("http://") }) {
-        if (!trimmed.startsWith(scheme))
+    for (auto const* scheme : s_web_schemes) {
+        if (!trimmed.startsWith(QLatin1String(scheme)))
             continue;
-        auto stripped = trimmed.mid(scheme.size());
+        auto stripped = trimmed.mid(qstrlen(scheme));
         if (auto match = inline_autocomplete_text_for_candidate(query, stripped); !match.isEmpty())
             return match;
         if (stripped.startsWith(QLatin1String("www."))) {
@@ -98,10 +102,10 @@ static bool suggestion_matches_query_exactly(QString const& query, QString const
             return true;
     }
 
-    for (auto scheme : { QLatin1String("https://"), QLatin1String("http://") }) {
-        if (!trimmed.startsWith(scheme))
+    for (auto const* scheme : s_web_schemes) {
+        if (!trimmed.startsWith(QLatin1String(scheme)))
             continue;
-        auto stripped = trimmed.mid(scheme.size());
+        auto stripped = trimmed.mid(qstrlen(scheme));
         if (query_matches_candidate_exactly(query, stripped))
             return true;
         if (stripped.startsWith(QLatin1String("www."))
@@ -150,7 +154,7 @@ LocationEdit::LocationEdit(QWidget* parent)
         m_autocomplete->show_with_suggestions(AK::move(suggestions), selected_row);
     };
 
-    connect(m_autocomplete, &Autocomplete::suggestion_activated, this, [this](QString const& text) {
+    Ladybird::connect(m_autocomplete, SIGNAL(suggestion_activated(QString)), this, [this](QString const& text) {
         m_is_applying_inline_autocomplete = true;
         setText(text);
         m_is_applying_inline_autocomplete = false;
@@ -158,17 +162,17 @@ LocationEdit::LocationEdit(QWidget* parent)
         emit returnPressed();
     });
 
-    connect(m_autocomplete, &Autocomplete::suggestion_highlighted, this, [this](QString const& text) {
+    Ladybird::connect(m_autocomplete, SIGNAL(suggestion_highlighted(QString)), this, [this](QString const& text) {
         auto query = current_query();
         apply_inline_autocomplete_suggestion_text(text, query);
     });
 
-    connect(m_autocomplete, &Autocomplete::did_close, this, [this] {
+    Ladybird::connect(m_autocomplete, SIGNAL(did_close()), this, [this] {
         m_current_inline_autocomplete_suggestion.clear();
         restore_query();
     });
 
-    connect(this, &QLineEdit::returnPressed, this, [this] {
+    Ladybird::connect(this, SIGNAL(returnPressed()), this, [this] {
         if (text().isEmpty())
             return;
 
@@ -184,7 +188,7 @@ LocationEdit::LocationEdit(QWidget* parent)
             set_url(url.release_value());
     });
 
-    connect(this, &QLineEdit::textEdited, this, [this] {
+    Ladybird::connect(this, SIGNAL(textEdited(QString)), this, [this] {
         if (m_is_applying_inline_autocomplete)
             return;
 
@@ -207,7 +211,9 @@ LocationEdit::LocationEdit(QWidget* parent)
         m_autocomplete->query_autocomplete_engine(ak_string_from_qstring(query));
     });
 
-    connect(this, &QLineEdit::textChanged, this, &LocationEdit::highlight_location);
+    Ladybird::connect(this, SIGNAL(textChanged(QString)), this, [this] {
+        highlight_location();
+    });
 }
 
 void LocationEdit::focusInEvent(QFocusEvent* event)
@@ -216,7 +222,7 @@ void LocationEdit::focusInEvent(QFocusEvent* event)
     highlight_location();
 
     if (event->reason() != Qt::PopupFocusReason)
-        QTimer::singleShot(0, this, &QLineEdit::selectAll);
+        QTimer::singleShot(0, this, SLOT(selectAll()));
 }
 
 void LocationEdit::focusOutEvent(QFocusEvent* event)

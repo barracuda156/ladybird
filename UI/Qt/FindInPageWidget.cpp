@@ -6,6 +6,7 @@
 
 #include <UI/Qt/FindInPageWidget.h>
 #include <UI/Qt/Icon.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Tab.h>
 
@@ -33,14 +34,16 @@ FindInPageWidget::FindInPageWidget(Tab* tab, WebContentView* content_view)
     m_find_text->setPlaceholderText("Search");
     m_find_text->setMinimumWidth(50);
     m_find_text->setMaximumWidth(250);
-    connect(m_find_text, &QLineEdit::textChanged, this, &FindInPageWidget::find_text_changed);
+    Ladybird::connect(m_find_text, SIGNAL(textChanged(QString)), this, [this] {
+        find_text_changed();
+    });
 
     m_previous_button = new QPushButton(this);
     m_previous_button->setFixedWidth(30);
     m_previous_button->setIcon(create_tvg_icon_with_theme_colors("up", palette()));
     m_previous_button->setToolTip("Find Previous Match");
     m_previous_button->setFlat(true);
-    connect(m_previous_button, &QPushButton::clicked, this, [this] {
+    Ladybird::connect(m_previous_button, SIGNAL(clicked()), this, [this] {
         m_content_view->find_in_page_previous_match();
     });
 
@@ -49,7 +52,7 @@ FindInPageWidget::FindInPageWidget(Tab* tab, WebContentView* content_view)
     m_next_button->setIcon(create_tvg_icon_with_theme_colors("down", palette()));
     m_next_button->setToolTip("Find Next Match");
     m_next_button->setFlat(true);
-    connect(m_next_button, &QPushButton::clicked, this, [this] {
+    Ladybird::connect(m_next_button, SIGNAL(clicked()), this, [this] {
         m_content_view->find_in_page_next_match();
     });
 
@@ -58,18 +61,14 @@ FindInPageWidget::FindInPageWidget(Tab* tab, WebContentView* content_view)
     m_exit_button->setIcon(create_tvg_icon_with_theme_colors("close", palette()));
     m_exit_button->setToolTip("Close Search Bar");
     m_exit_button->setFlat(true);
-    connect(m_exit_button, &QPushButton::clicked, this, [this] {
+    Ladybird::connect(m_exit_button, SIGNAL(clicked()), this, [this] {
         setVisible(false);
     });
 
     m_match_case = new QCheckBox(this);
     m_match_case->setText("Match &Case");
     m_match_case->setChecked(false);
-#if (QT_VERSION > QT_VERSION_CHECK(6, 7, 0))
-    connect(m_match_case, &QCheckBox::checkStateChanged, this, [this] {
-#else
-    connect(m_match_case, &QCheckBox::stateChanged, this, [this] {
-#endif
+    Ladybird::connect(m_match_case, SIGNAL(stateChanged(int)), this, [this] {
         find_text_changed();
     });
 

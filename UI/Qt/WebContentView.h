@@ -17,13 +17,15 @@
 #include <LibWeb/Forward.h>
 #include <LibWebView/ViewImplementation.h>
 
+#include <QImage>
 #include <QMenu>
 #include <QTimer>
 #include <QUrl>
 #include <QWidget>
 
 class QKeyEvent;
-class QSinglePointEvent;
+class QMouseEvent;
+class QWheelEvent;
 
 namespace Ladybird {
 
@@ -76,9 +78,6 @@ public:
 
     QPoint map_point_to_global_position(Gfx::IntPoint) const;
 
-public slots:
-    void select_dropdown_action();
-
 signals:
     void urls_dropped(QList<QUrl> const&);
 
@@ -93,7 +92,9 @@ private:
     void update_viewport_size();
     void update_cursor(Gfx::Cursor cursor);
 
-    void enqueue_native_event(Web::MouseEvent::Type, QSinglePointEvent const& event);
+    void enqueue_native_event(Web::MouseEvent::Type, QMouseEvent const& event);
+    void enqueue_native_event(Web::MouseEvent::Type, QWheelEvent const& event);
+    void enqueue_mouse_event(Web::MouseEvent::Type, QPoint position, QPoint global_position, Qt::MouseButton, Qt::MouseButtons, Qt::KeyboardModifiers, int wheel_delta_x, int wheel_delta_y);
 
     void enqueue_native_event(Web::DragEvent::Type, QDropEvent const& event);
     void finish_handling_drag_event(Web::DragEvent const&);
@@ -114,6 +115,11 @@ private:
     int m_click_count { 0 };
 
     QMenu* m_select_dropdown { nullptr };
+
+    // The page in a format Qt 4 can draw, converted once per frame.
+    QImage m_page_image;
+    Gfx::Bitmap const* m_page_image_bitmap { nullptr };
+    Gfx::IntSize m_page_image_size;
 };
 
 }

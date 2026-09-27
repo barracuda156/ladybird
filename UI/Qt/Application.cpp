@@ -8,6 +8,7 @@
 #include <LibWebView/URL.h>
 #include <UI/Qt/Application.h>
 #include <UI/Qt/EventLoopImplementationQt.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/Settings.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/WebContentView.h>
@@ -16,13 +17,14 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFileOpenEvent>
 #include <QFormLayout>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QMimeData>
-#include <QStandardPaths>
 
 #if defined(AK_OS_WINDOWS)
 #    include <AK/Windows.h>
@@ -159,12 +161,11 @@ Optional<WebView::ViewImplementation&> Application::open_blank_new_tab(Web::HTML
 
 Optional<ByteString> Application::ask_user_for_download_path(StringView file) const
 {
-    auto default_path = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-
-    if (default_path.isNull() || default_path.isEmpty())
-        default_path = qstring_from_ak_string(file);
-    else
-        default_path = QDir { default_path }.filePath(qstring_from_ak_string(file));
+    // Qt 4 knows no download location; ~/Downloads is where Mac OS X puts downloads.
+    auto default_path = QDir::home().filePath("Downloads");
+    if (!QFileInfo(default_path).isDir())
+        default_path = QDir::homePath();
+    default_path = QDir { default_path }.filePath(qstring_from_ak_string(file));
 
     auto path = QFileDialog::getSaveFileName(nullptr, "Select save location", default_path);
     if (path.isNull())
@@ -200,7 +201,7 @@ Utf16String Application::clipboard_text() const
     if (browser_options().headless_mode.has_value())
         return WebView::Application::clipboard_text();
 
-    auto const* clipboard = QGuiApplication::clipboard();
+    auto const* clipboard = QApplication::clipboard();
     return utf16_string_from_qstring(clipboard->text());
 }
 
@@ -210,7 +211,7 @@ Vector<Web::Clipboard::SystemClipboardRepresentation> Application::clipboard_ent
         return WebView::Application::clipboard_entries();
 
     Vector<Web::Clipboard::SystemClipboardRepresentation> representations;
-    auto const* clipboard = QGuiApplication::clipboard();
+    auto const* clipboard = QApplication::clipboard();
 
     auto const* mime_data = clipboard->mimeData();
     if (!mime_data)
@@ -236,7 +237,7 @@ void Application::insert_clipboard_entry(Web::Clipboard::SystemClipboardRepresen
     auto* mime_data = new QMimeData();
     mime_data->setData(qstring_from_ak_string(entry.mime_type), qbytearray_from_ak_string(entry.data));
 
-    auto* clipboard = QGuiApplication::clipboard();
+    auto* clipboard = QApplication::clipboard();
     clipboard->setMimeData(mime_data);
 }
 
@@ -301,15 +302,15 @@ static NonnullRefPtr<PromiseType> display_add_or_edit_bookmark_dialog(
         title_edit->setText(qstring_from_ak_string(*current_title));
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
-    QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    Ladybird::connect(buttons, SIGNAL(accepted()), dialog, [dialog] { dialog->accept(); });
+    Ladybird::connect(buttons, SIGNAL(rejected()), dialog, [dialog] { dialog->reject(); });
 
     auto* layout = new QFormLayout(dialog);
     layout->addRow("URL:", url_edit);
     layout->addRow("Title:", title_edit);
     layout->addRow(buttons);
 
-    QObject::connect(dialog, &QDialog::finished, [promise, url_edit = QPointer { url_edit }, title_edit = QPointer { title_edit }](auto result) {
+    Ladybird::connect(dialog, SIGNAL(finished(int)), dialog, [promise, url_edit = QPointer<QLineEdit> { url_edit }, title_edit = QPointer<QLineEdit> { title_edit }](int result) {
         if (result != QDialog::Accepted || !url_edit || !title_edit) {
             promise->reject(Error::from_errno(ECANCELED));
             return;
@@ -372,14 +373,14 @@ static NonnullRefPtr<PromiseType> display_add_or_edit_bookmark_folder_dialog(
         title_edit->setText(qstring_from_ak_string(*current_title));
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
-    QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    Ladybird::connect(buttons, SIGNAL(accepted()), dialog, [dialog] { dialog->accept(); });
+    Ladybird::connect(buttons, SIGNAL(rejected()), dialog, [dialog] { dialog->reject(); });
 
     auto* layout = new QFormLayout(dialog);
     layout->addRow("Title:", title_edit);
     layout->addRow(buttons);
 
-    QObject::connect(dialog, &QDialog::finished, [promise, title_edit = QPointer { title_edit }](auto result) {
+    Ladybird::connect(dialog, SIGNAL(finished(int)), dialog, [promise, title_edit = QPointer<QLineEdit> { title_edit }](int result) {
         if (result != QDialog::Accepted || !title_edit) {
             promise->reject(Error::from_errno(ECANCELED));
             return;

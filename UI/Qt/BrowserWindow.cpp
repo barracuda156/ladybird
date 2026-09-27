@@ -16,6 +16,7 @@
 #include <UI/Qt/BrowserWindow.h>
 #include <UI/Qt/Icon.h>
 #include <UI/Qt/Menu.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/Settings.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/TabBar.h>
@@ -23,14 +24,14 @@
 
 #include <QAction>
 #include <QActionGroup>
-#include <QGuiApplication>
+#include <QApplication>
+#include <QDesktopWidget>
 #include <QInputDialog>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPropertyAnimation>
 #include <QPushButton>
-#include <QScreen>
 #include <QShortcut>
 #include <QStatusBar>
 #include <QStyle>
@@ -38,7 +39,6 @@
 #include <QTimer>
 #include <QWheelEvent>
 #include <QWidget>
-#include <QWindow>
 
 namespace Ladybird {
 
@@ -47,7 +47,7 @@ FullscreenMode::FullscreenMode(BrowserWindow* window, ExitFullscreenButton* exit
     , m_window(window)
     , m_exit_button(exit_button)
 {
-    connect(m_exit_button, &QPushButton::clicked, this, [this]() {
+    Ladybird::connect(m_exit_button, SIGNAL(clicked()), this, [this]() {
         exit(ExitInitiatedBy::UI);
     });
 }
@@ -76,7 +76,7 @@ void FullscreenMode::entered_fullscreen()
     m_debounce = true;
     m_exit_button->animate_show();
     // Let button float in place 3 * time it takes to animate it in place
-    QTimer::singleShot(button_animation_time() * 3, [this]() { m_debounce = false; });
+    single_shot(button_animation_time() * 3, this, [this]() { m_debounce = false; });
 }
 
 bool FullscreenMode::is_api_fullscreen() const
@@ -103,7 +103,7 @@ void FullscreenMode::maybe_animate_show_exit_button(QPointF pos)
         if (!m_exit_button->isVisible()) {
             m_debounce = true;
             m_exit_button->animate_show();
-            QTimer::singleShot(button_animation_time() * 3, [this]() { m_debounce = false; });
+            single_shot(button_animation_time() * 3, this, [this]() { m_debounce = false; });
         }
     } else if (mouse_y > (threshold * 10) && m_exit_button->isVisible()) {
         // if the button has floated in, we want to hide it when leaving the top 10%
@@ -137,8 +137,7 @@ void ExitFullscreenButton::animate_show()
         return;
 
     show();
-    QScreen* current_screen = screen();
-    QRect screen_geometry = current_screen->geometry();
+    QRect screen_geometry = QApplication::desktop()->screenGeometry(this);
 
     int const destination_x = (screen_geometry.width() - width()) / 2;
     int const destination_y = static_cast<int>(static_cast<float>(screen_geometry.height()) * 0.05);
@@ -169,38 +168,16 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
 
     setWindowIcon(app_icon());
 
-    // Listen for DPI changes
-    m_device_pixel_ratio = devicePixelRatio();
-    m_current_screen = screen();
-    m_refresh_rate = m_current_screen->refreshRate();
-
-    if (QT_VERSION < QT_VERSION_CHECK(6, 6, 0) || QGuiApplication::platformName() != "wayland") {
-        setAttribute(Qt::WA_NativeWindow);
-        setAttribute(Qt::WA_DontCreateNativeAncestors);
-        QObject::connect(m_current_screen, &QScreen::logicalDotsPerInchChanged, this, &BrowserWindow::device_pixel_ratio_changed);
-        QObject::connect(m_current_screen, &QScreen::refreshRateChanged, this, &BrowserWindow::refresh_rate_changed);
-        QObject::connect(windowHandle(), &QWindow::screenChanged, this, [this](QScreen* screen) {
-            if (m_device_pixel_ratio != devicePixelRatio())
-                device_pixel_ratio_changed(devicePixelRatio());
-
-            if (m_refresh_rate != screen->refreshRate())
-                refresh_rate_changed(screen->refreshRate());
-
-            // Listen for logicalDotsPerInchChanged and refreshRateChanged signals on new screen
-            QObject::disconnect(m_current_screen, &QScreen::logicalDotsPerInchChanged, nullptr, nullptr);
-            QObject::disconnect(m_current_screen, &QScreen::refreshRateChanged, nullptr, nullptr);
-            m_current_screen = screen;
-            QObject::connect(m_current_screen, &QScreen::logicalDotsPerInchChanged, this, &BrowserWindow::device_pixel_ratio_changed);
-            QObject::connect(m_current_screen, &QScreen::refreshRateChanged, this, &BrowserWindow::refresh_rate_changed);
-        });
-    }
+    // Qt 4 knows neither device pixel ratios nor refresh rates of screens.
+    m_device_pixel_ratio = 1.0;
+    m_refresh_rate = 60.0;
 
     m_hamburger_menu = new QMenu(this);
 
     if (!Settings::the()->show_menubar())
         menuBar()->hide();
 
-    QObject::connect(Settings::the(), &Settings::show_menubar_changed, this, [this](bool show_menubar) {
+    Ladybird::connect(Settings::the(), SIGNAL(show_menubar_changed(bool)), this, [this](bool show_menubar) {
         menuBar()->setVisible(show_menubar);
     });
 
@@ -243,21 +220,27 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     m_find_in_page_action->setShortcuts(QKeySequence::keyBindings(QKeySequence::StandardKey::Find));
 
     auto find_previous_shortcuts = QKeySequence::keyBindings(QKeySequence::StandardKey::FindPrevious);
-    for (auto const& shortcut : find_previous_shortcuts)
-        new QShortcut(shortcut, this, [this] {
+    for (auto const& key_sequence : find_previous_shortcuts) {
+        auto* shortcut = new QShortcut(key_sequence, this);
+        Ladybird::connect(shortcut, SIGNAL(activated()), this, [this] {
             if (m_current_tab)
                 m_current_tab->find_previous();
         });
+    }
 
     auto find_next_shortcuts = QKeySequence::keyBindings(QKeySequence::StandardKey::FindNext);
-    for (auto const& shortcut : find_next_shortcuts)
-        new QShortcut(shortcut, this, [this] {
+    for (auto const& key_sequence : find_next_shortcuts) {
+        auto* shortcut = new QShortcut(key_sequence, this);
+        Ladybird::connect(shortcut, SIGNAL(activated()), this, [this] {
             if (m_current_tab)
                 m_current_tab->find_next();
         });
+    }
 
     edit_menu->addAction(m_find_in_page_action);
-    QObject::connect(m_find_in_page_action, &QAction::triggered, this, &BrowserWindow::show_find_in_page);
+    Ladybird::connect(m_find_in_page_action, SIGNAL(triggered()), this, [this] {
+        show_find_in_page();
+    });
 
     edit_menu->addSeparator();
     edit_menu->addAction(create_application_action(*edit_menu, Application::the().open_settings_page_action()));
@@ -268,12 +251,16 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     auto* open_next_tab_action = new QAction("Open &Next Tab", this);
     open_next_tab_action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_PageDown));
     view_menu->addAction(open_next_tab_action);
-    QObject::connect(open_next_tab_action, &QAction::triggered, this, &BrowserWindow::open_next_tab);
+    Ladybird::connect(open_next_tab_action, SIGNAL(triggered()), this, [this] {
+        open_next_tab();
+    });
 
     auto* open_previous_tab_action = new QAction("Open &Previous Tab", this);
     open_previous_tab_action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_PageUp));
     view_menu->addAction(open_previous_tab_action);
-    QObject::connect(open_previous_tab_action, &QAction::triggered, this, &BrowserWindow::open_previous_tab);
+    Ladybird::connect(open_previous_tab_action, SIGNAL(triggered()), this, [this] {
+        open_previous_tab();
+    });
 
     view_menu->addSeparator();
 
@@ -289,7 +276,7 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     show_menubar->setCheckable(true);
     show_menubar->setChecked(Settings::the()->show_menubar());
     view_menu->addAction(show_menubar);
-    QObject::connect(show_menubar, &QAction::triggered, this, [](bool checked) {
+    Ladybird::connect(show_menubar, SIGNAL(triggered(bool)), this, [](bool checked) {
         Settings::the()->set_show_menubar(checked);
     });
 
@@ -317,24 +304,32 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     quit_action->setShortcuts(QKeySequence::keyBindings(QKeySequence::StandardKey::Quit));
     m_hamburger_menu->addAction(quit_action);
     file_menu->addAction(quit_action);
-    QObject::connect(quit_action, &QAction::triggered, this, &QMainWindow::close);
+    Ladybird::connect(quit_action, SIGNAL(triggered()), this, [this] {
+        close();
+    });
 
-    QObject::connect(m_new_tab_action, &QAction::triggered, this, [this] {
+    Ladybird::connect(m_new_tab_action, SIGNAL(triggered()), this, [this] {
         auto& tab = new_tab_from_url(WebView::Application::settings().new_tab_page_url(), Web::HTML::ActivateTab::Yes);
         tab.set_url_is_hidden(true);
         tab.focus_location_editor();
     });
-    QObject::connect(m_new_window_action, &QAction::triggered, this, [] {
+    Ladybird::connect(m_new_window_action, SIGNAL(triggered()), this, [] {
         (void)Application::the().new_window({});
     });
-    QObject::connect(open_file_action, &QAction::triggered, this, &BrowserWindow::open_file);
+    Ladybird::connect(open_file_action, SIGNAL(triggered()), this, [this] {
+        open_file();
+    });
 
     m_exit_button = new ExitFullscreenButton { this };
     m_fullscreen_mode = new FullscreenMode { this, m_exit_button };
-    connect(m_fullscreen_mode, &FullscreenMode::on_exit_fullscreen, this, &BrowserWindow::exit_fullscreen);
-    connect(m_fullscreen_mode, &FullscreenMode::on_exit_fullscreen, m_exit_button, &ExitFullscreenButton::hide);
+    Ladybird::connect(m_fullscreen_mode, SIGNAL(on_exit_fullscreen()), this, [this] {
+        exit_fullscreen();
+    });
+    Ladybird::connect(m_fullscreen_mode, SIGNAL(on_exit_fullscreen()), m_exit_button, [this] {
+        m_exit_button->hide();
+    });
 
-    QObject::connect(m_tabs_container, &TabWidget::current_tab_changed, this, [this](int index) {
+    Ladybird::connect(m_tabs_container, SIGNAL(current_tab_changed(int)), this, [this](int index) {
         auto* tab = m_tabs_container->tab(index);
         if (tab)
             setWindowTitle(QString("%1 - Ladybird").arg(tab->title()));
@@ -342,11 +337,16 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
         set_current_tab(tab);
         fullscreen_mode().exit(FullscreenMode::ExitInitiatedBy::UI);
     });
-    QObject::connect(m_tabs_container, &TabWidget::tab_close_requested, this, &BrowserWindow::request_to_close_tab);
-    QObject::connect(close_current_tab_action, &QAction::triggered, this, &BrowserWindow::request_to_close_current_tab);
+    Ladybird::connect(m_tabs_container, SIGNAL(tab_close_requested(int)), this, [this](int index) {
+        request_to_close_tab(index);
+    });
+    Ladybird::connect(close_current_tab_action, SIGNAL(triggered()), this, [this] {
+        request_to_close_current_tab();
+    });
 
     for (int i = 0; i <= 7; ++i) {
-        new QShortcut(QKeySequence(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_1 + i)), this, [this, i] {
+        auto* shortcut = new QShortcut(QKeySequence(Qt::CTRL | (Qt::Key_1 + i)), this);
+        Ladybird::connect(shortcut, SIGNAL(activated()), this, [this, i] {
             if (m_tabs_container->count() <= 1)
                 return;
 
@@ -354,7 +354,8 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
         });
     }
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_9), this, [this] {
+    auto* last_tab_shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_9), this);
+    Ladybird::connect(last_tab_shortcut, SIGNAL(activated()), this, [this] {
         if (m_tabs_container->count() <= 1)
             return;
 
@@ -399,7 +400,7 @@ void BrowserWindow::on_devtools_enabled()
 {
     auto* disable_button = new QPushButton("Disable", this);
 
-    connect(disable_button, &QPushButton::clicked, this, []() {
+    Ladybird::connect(disable_button, SIGNAL(clicked()), this, []() {
         MUST(WebView::Application::the().toggle_devtools_enabled());
     });
 
@@ -470,15 +471,21 @@ Tab& BrowserWindow::create_new_tab(Web::HTML::ActivateTab activate_tab)
 
 void BrowserWindow::initialize_tab(Tab* tab)
 {
-    QObject::connect(tab, &Tab::title_changed, this, &BrowserWindow::tab_title_changed);
-    QObject::connect(tab, &Tab::favicon_changed, this, &BrowserWindow::tab_favicon_changed);
-    QObject::connect(tab, &Tab::audio_play_state_changed, this, &BrowserWindow::tab_audio_play_state_changed);
+    Ladybird::connect(tab, SIGNAL(title_changed(int, QString)), tab, [this](int index, QString const& title) {
+        tab_title_changed(index, title);
+    });
+    Ladybird::connect(tab, SIGNAL(favicon_changed(int, QIcon)), tab, [this](int index, QIcon const& icon) {
+        tab_favicon_changed(index, icon);
+    });
+    Ladybird::connect(tab, SIGNAL(audio_play_state_changed(int, Web::HTML::AudioPlayState)), tab, [this](int index, Web::HTML::AudioPlayState play_state) {
+        tab_audio_play_state_changed(index, play_state);
+    });
 
-    QObject::connect(&tab->view(), &WebContentView::urls_dropped, this, [this](auto& urls) {
+    Ladybird::connect(&tab->view(), SIGNAL(urls_dropped(QList<QUrl>)), tab, [this](QList<QUrl> const& urls) {
         VERIFY(urls.size());
         m_current_tab->navigate(ak_url_from_qurl(urls[0]));
 
-        for (qsizetype i = 1; i < urls.size(); ++i)
+        for (int i = 1; i < urls.size(); ++i)
             new_tab_from_url(ak_url_from_qurl(urls[i]), Web::HTML::ActivateTab::No);
     });
 
@@ -588,7 +595,7 @@ void BrowserWindow::create_close_button_for_tab(Tab* tab)
     auto* button = new TabBarButton(create_tvg_icon_with_theme_colors("close", palette()));
     auto position = audio_button_position_for_tab(index) == QTabBar::LeftSide ? QTabBar::RightSide : QTabBar::LeftSide;
 
-    connect(button, &QPushButton::clicked, this, [this, tab]() {
+    Ladybird::connect(button, SIGNAL(clicked()), button, [this, tab]() {
         auto index = m_tabs_container->index_of(tab);
         request_to_close_tab(index);
     });
@@ -612,7 +619,7 @@ void BrowserWindow::tab_audio_play_state_changed(int index, Web::HTML::AudioPlay
         button->setToolTip(tool_tip_for_page_mute_state(*tab));
         button->setObjectName("LadybirdAudioState");
 
-        connect(button, &QPushButton::clicked, this, [this, tab, position]() {
+        Ladybird::connect(button, SIGNAL(clicked()), button, [this, tab, position]() {
             tab->view().toggle_page_mute_state();
             auto index = tab_index(tab);
 
@@ -785,10 +792,10 @@ void BrowserWindow::wheelEvent(QWheelEvent* event)
     if (!m_current_tab)
         return;
 
-    if ((event->modifiers() & Qt::ControlModifier) != 0) {
-        if (event->angleDelta().y() > 0)
+    if ((event->modifiers() & Qt::ControlModifier) != 0 && event->orientation() == Qt::Vertical) {
+        if (event->delta() > 0)
             m_current_tab->view().zoom_in();
-        else if (event->angleDelta().y() < 0)
+        else if (event->delta() < 0)
             m_current_tab->view().zoom_out();
     }
 }

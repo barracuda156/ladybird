@@ -12,6 +12,7 @@
 #include <UI/Qt/BrowserWindow.h>
 #include <UI/Qt/Icon.h>
 #include <UI/Qt/Menu.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/Settings.h>
 #include <UI/Qt/StringUtils.h>
 
@@ -24,8 +25,8 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
-#include <QMimeDatabase>
 #include <QResizeEvent>
+#include <QUrl>
 
 namespace Ladybird {
 
@@ -63,6 +64,69 @@ private:
     }
 };
 
+// Qt 4 has no MIME database. The file picker only needs the file name patterns of the types a
+// page asks for, so these are those of common types.
+struct MimeTypeGlobs {
+    char const* mime_type;
+    char const* globs;
+};
+
+static constexpr MimeTypeGlobs s_mime_type_globs[] = {
+    { "image/png", "*.png" },
+    { "image/jpeg", "*.jpg *.jpeg" },
+    { "image/gif", "*.gif" },
+    { "image/webp", "*.webp" },
+    { "image/avif", "*.avif" },
+    { "image/jxl", "*.jxl" },
+    { "image/bmp", "*.bmp" },
+    { "image/x-icon", "*.ico" },
+    { "image/vnd.microsoft.icon", "*.ico" },
+    { "image/svg+xml", "*.svg" },
+    { "image/tiff", "*.tif *.tiff" },
+    { "audio/mpeg", "*.mp3" },
+    { "audio/ogg", "*.ogg *.oga *.opus" },
+    { "audio/opus", "*.opus" },
+    { "audio/flac", "*.flac" },
+    { "audio/wav", "*.wav" },
+    { "audio/x-wav", "*.wav" },
+    { "audio/mp4", "*.m4a" },
+    { "audio/aac", "*.aac" },
+    { "audio/webm", "*.weba" },
+    { "video/mp4", "*.mp4 *.m4v" },
+    { "video/webm", "*.webm" },
+    { "video/ogg", "*.ogv" },
+    { "video/x-matroska", "*.mkv" },
+    { "video/quicktime", "*.mov" },
+    { "video/x-msvideo", "*.avi" },
+    { "text/plain", "*.txt" },
+    { "text/html", "*.html *.htm" },
+    { "text/css", "*.css" },
+    { "text/csv", "*.csv" },
+    { "application/json", "*.json" },
+    { "application/pdf", "*.pdf" },
+    { "application/zip", "*.zip" },
+};
+
+// The patterns of one type, or of every type of a kind for "image/" or "image/*".
+static QStringList globs_for_mime_type(QString mime_type)
+{
+    if (mime_type.endsWith('*'))
+        mime_type.chop(1);
+
+    QStringList globs;
+    for (auto const& entry : s_mime_type_globs) {
+        auto name = QString::fromLatin1(entry.mime_type);
+        auto matches = mime_type.endsWith('/') ? name.startsWith(mime_type) : name == mime_type;
+        if (!matches)
+            continue;
+        for (auto const& glob : QString::fromLatin1(entry.globs).split(' ')) {
+            if (!globs.contains(glob))
+                globs.append(glob);
+        }
+    }
+    return globs;
+}
+
 static QIcon default_favicon()
 {
     static QIcon icon = load_icon_from_uri("resource://icons/48x48/app-browser.png"sv);
@@ -93,7 +157,7 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
     m_hover_label->setFrameShape(QFrame::Shape::Box);
     m_hover_label->setAutoFillBackground(true);
 
-    QObject::connect(m_hover_label, &HyperlinkLabel::mouse_entered, [this] {
+    Ladybird::connect(m_hover_label, SIGNAL(mouse_entered(QEvent*)), this, [this] {
         update_hover_label();
     });
 
@@ -114,10 +178,10 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
     m_hamburger_button->setMenu(&m_window->hamburger_menu());
     m_hamburger_button->setStyleSheet(":menu-indicator {image: none}");
 
-    QObject::connect(&m_window->hamburger_menu(), &QMenu::aboutToShow, m_hamburger_button, [this]() {
+    Ladybird::connect(&m_window->hamburger_menu(), SIGNAL(aboutToShow()), m_hamburger_button, [this]() {
         m_hamburger_button->setDown(true);
     });
-    QObject::connect(&m_window->hamburger_menu(), &QMenu::aboutToHide, m_hamburger_button, [this]() {
+    Ladybird::connect(&m_window->hamburger_menu(), SIGNAL(aboutToHide()), m_hamburger_button, [this]() {
         m_hamburger_button->setDown(false);
     });
 
@@ -150,7 +214,7 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
 
     m_hamburger_button_action->setVisible(!Settings::the()->show_menubar());
 
-    QObject::connect(Settings::the(), &Settings::show_menubar_changed, this, [this](bool show_menubar) {
+    Ladybird::connect(Settings::the(), SIGNAL(show_menubar_changed(bool)), this, [this](bool show_menubar) {
         m_hamburger_button_action->setVisible(!show_menubar);
     });
 
@@ -189,7 +253,9 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
         m_location_edit->set_url(url);
     };
 
-    QObject::connect(m_location_edit, &QLineEdit::returnPressed, this, &Tab::location_edit_return_pressed);
+    Ladybird::connect(m_location_edit, SIGNAL(returnPressed()), this, [this] {
+        location_edit_return_pressed();
+    });
 
     view().on_title_change = [this](auto const& title) {
         m_title = qstring_from_utf16_string(title);
@@ -197,7 +263,7 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
     };
 
     view().on_favicon_change = [this](auto const& bitmap) {
-        auto qimage = QImage(bitmap.scanline_u8(0), bitmap.width(), bitmap.height(), QImage::Format_ARGB32);
+        auto qimage = qimage_from_bitmap(bitmap);
         if (qimage.isNull())
             return;
         auto qpixmap = QPixmap::fromImage(qimage);
@@ -211,7 +277,7 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
     view().on_request_alert = [this](auto const& message) {
         m_dialog = new QMessageBox(QMessageBox::Icon::Warning, "Ladybird", qstring_from_ak_string(message), QMessageBox::StandardButton::Ok, &view());
 
-        QObject::connect(m_dialog, &QDialog::finished, this, [this]() {
+        Ladybird::connect(m_dialog.data(), SIGNAL(finished(int)), m_dialog.data(), [this]() {
             view().alert_closed();
             m_dialog = nullptr;
         });
@@ -222,7 +288,7 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
     view().on_request_confirm = [this](auto const& message) {
         m_dialog = new QMessageBox(QMessageBox::Icon::Question, "Ladybird", qstring_from_ak_string(message), QMessageBox::StandardButton::Ok | QMessageBox::StandardButton::Cancel, &view());
 
-        QObject::connect(m_dialog, &QDialog::finished, this, [this](auto result) {
+        Ladybird::connect(m_dialog.data(), SIGNAL(finished(int)), m_dialog.data(), [this](int result) {
             view().confirm_closed(result == QMessageBox::StandardButton::Ok || result == QDialog::Accepted);
             m_dialog = nullptr;
         });
@@ -238,7 +304,7 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
         dialog.setLabelText(qstring_from_ak_string(message));
         dialog.setTextValue(qstring_from_ak_string(default_));
 
-        QObject::connect(m_dialog, &QDialog::finished, this, [this](auto result) {
+        Ladybird::connect(m_dialog.data(), SIGNAL(finished(int)), m_dialog.data(), [this](int result) {
             if (result == QDialog::Accepted) {
                 auto& dialog = static_cast<QInputDialog&>(*m_dialog);
                 view().prompt_closed(ak_string_from_qstring(dialog.textValue()));
@@ -273,11 +339,11 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
         auto& dialog = static_cast<QColorDialog&>(*m_dialog);
         dialog.setWindowTitle("Ladybird");
         dialog.setOption(QColorDialog::ShowAlphaChannel, false);
-        QObject::connect(&dialog, &QColorDialog::currentColorChanged, this, [this](QColor const& color) {
+        Ladybird::connect(&dialog, SIGNAL(currentColorChanged(QColor)), &dialog, [this](QColor const& color) {
             view().color_picker_update(Color(color.red(), color.green(), color.blue()), Web::HTML::ColorPickerUpdateState::Update);
         });
 
-        QObject::connect(m_dialog, &QDialog::finished, this, [this](auto result) {
+        Ladybird::connect(m_dialog.data(), SIGNAL(finished(int)), m_dialog.data(), [this](int result) {
             if (result == QDialog::Accepted) {
                 auto& dialog = static_cast<QColorDialog&>(*m_dialog);
                 view().color_picker_update(Color(dialog.selectedColor().red(), dialog.selectedColor().green(), dialog.selectedColor().blue()), Web::HTML::ColorPickerUpdateState::Closed);
@@ -304,7 +370,6 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
         };
 
         QStringList accepted_file_filters;
-        QMimeDatabase mime_database;
 
         for (auto const& filter : accepted_file_types.filters) {
             filter.visit(
@@ -327,18 +392,14 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
                         break;
                     }
 
-                    QStringList extensions;
-
-                    for (auto const& mime_type : mime_database.allMimeTypes()) {
-                        if (mime_type.name().startsWith(filter))
-                            extensions.append(mime_type.globPatterns());
-                    }
+                    auto extensions = globs_for_mime_type(filter);
 
                     accepted_file_filters.append(QString("%1 (%2)").arg(title, extensions.join(" ")));
                 },
                 [&](Web::HTML::FileFilter::MimeType const& filter) {
-                    if (auto mime_type = mime_database.mimeTypeForName(qstring_from_ak_string(filter.value)); mime_type.isValid())
-                        accepted_file_filters.append(mime_type.filterString());
+                    auto mime_type = qstring_from_ak_string(filter.value);
+                    if (auto extensions = globs_for_mime_type(mime_type); !extensions.isEmpty())
+                        accepted_file_filters.append(QString("%1 (%2)").arg(mime_type, extensions.join(" ")));
                 },
                 [&](Web::HTML::FileFilter::Extension const& filter) {
                     auto extension = MUST(String::formatted("*.{}", filter.value));
@@ -367,7 +428,9 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
         m_find_in_page->update_result_label(current_match_index, total_match_count);
     };
 
-    QObject::connect(focus_location_editor_action, &QAction::triggered, this, &Tab::focus_location_editor);
+    Ladybird::connect(focus_location_editor_action, SIGNAL(triggered()), this, [this] {
+        focus_location_editor();
+    });
 
     view().on_restore_window = [this]() {
         m_window->showNormal();
@@ -407,41 +470,41 @@ Tab::Tab(BrowserWindow* window, RefPtr<WebView::WebContentClient> parent_client,
     };
 
     auto* duplicate_tab_action = new QAction("&Duplicate Tab", this);
-    QObject::connect(duplicate_tab_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(duplicate_tab_action, SIGNAL(triggered()), this, [this]() {
         m_window->new_tab_from_url(view().url(), Web::HTML::ActivateTab::Yes);
     });
 
     auto* move_to_start_action = new QAction("Move to &Start", this);
-    QObject::connect(move_to_start_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(move_to_start_action, SIGNAL(triggered()), this, [this]() {
         m_window->move_tab(tab_index(), 0);
     });
 
     auto* move_to_end_action = new QAction("Move to &End", this);
-    QObject::connect(move_to_end_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(move_to_end_action, SIGNAL(triggered()), this, [this]() {
         m_window->move_tab(tab_index(), m_window->tab_count() - 1);
     });
 
     auto* close_tab_action = new QAction("&Close Tab", this);
-    QObject::connect(close_tab_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(close_tab_action, SIGNAL(triggered()), this, [this]() {
         request_close();
     });
 
     auto* close_tabs_to_left_action = new QAction("C&lose Tabs to Left", this);
-    QObject::connect(close_tabs_to_left_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(close_tabs_to_left_action, SIGNAL(triggered()), this, [this]() {
         for (auto i = tab_index() - 1; i >= 0; i--) {
             m_window->request_to_close_tab(i);
         }
     });
 
     auto* close_tabs_to_right_action = new QAction("Close Tabs to R&ight", this);
-    QObject::connect(close_tabs_to_right_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(close_tabs_to_right_action, SIGNAL(triggered()), this, [this]() {
         for (auto i = m_window->tab_count() - 1; i > tab_index(); i--) {
             m_window->request_to_close_tab(i);
         }
     });
 
     auto* close_other_tabs_action = new QAction("Cl&ose Other Tabs", this);
-    QObject::connect(close_other_tabs_action, &QAction::triggered, this, [this]() {
+    Ladybird::connect(close_other_tabs_action, SIGNAL(triggered()), this, [this]() {
         for (auto i = m_window->tab_count() - 1; i >= 0; i--) {
             if (i == tab_index())
                 continue;
@@ -492,9 +555,9 @@ void Tab::location_edit_return_pressed()
 
 void Tab::open_file()
 {
-    auto filename = QFileDialog::getOpenFileUrl(this, "Open file", QDir::homePath(), "All Files (*.*)");
-    if (filename.isValid()) {
-        navigate(ak_url_from_qurl(filename));
+    auto filename = QFileDialog::getOpenFileName(this, "Open file", QDir::homePath(), "All Files (*.*)");
+    if (!filename.isEmpty()) {
+        navigate(ak_url_from_qurl(QUrl::fromLocalFile(filename)));
     }
 }
 

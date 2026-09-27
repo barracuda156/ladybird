@@ -6,7 +6,9 @@
 
 #include <AK/MemoryStream.h>
 #include <AK/String.h>
+#include <LibGfx/Bitmap.h>
 #include <LibGfx/Rect.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/TVGIconEngine.h>
 
@@ -22,7 +24,7 @@ void TVGIconEngine::paint(QPainter* qpainter, QRect const& rect, QIcon::Mode mod
     qpainter->drawPixmap(rect, pixmap(rect.size(), mode, state));
 }
 
-QIconEngine* TVGIconEngine::clone() const
+QIconEngineV2* TVGIconEngine::clone() const
 {
     return new TVGIconEngine(*this);
 }
@@ -48,14 +50,7 @@ QPixmap TVGIconEngine::pixmap(QSize const& size, QIcon::Mode mode, QIcon::State 
         }
     }
 
-    QImage qimage(
-        bitmap->scanline_u8(0),
-        bitmap->width(),
-        bitmap->height(),
-        static_cast<qsizetype>(bitmap->pitch()),
-        QImage::Format::Format_ARGB32);
-
-    pixmap = QPixmap::fromImage(qimage);
+    pixmap = QPixmap::fromImage(qimage_from_bitmap(*bitmap));
     if (!pixmap.isNull())
         QPixmapCache::insert(key, pixmap);
     return pixmap;
@@ -76,7 +71,7 @@ void TVGIconEngine::add_filter(QIcon::Mode mode, Function<Color(Color)> filter)
 TVGIconEngine* TVGIconEngine::from_file(QString const& path)
 {
     QFile icon_resource(path);
-    if (!icon_resource.open(QIODeviceBase::ReadOnly))
+    if (!icon_resource.open(QIODevice::ReadOnly))
         return nullptr;
     auto icon_data = icon_resource.readAll();
     FixedMemoryStream icon_bytes { ReadonlyBytes { icon_data.data(), static_cast<size_t>(icon_data.size()) } };

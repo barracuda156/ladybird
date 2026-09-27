@@ -7,6 +7,7 @@
 #include <AK/Base64.h>
 #include <UI/Qt/Icon.h>
 #include <UI/Qt/Menu.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/WebContentView.h>
 
@@ -76,14 +77,16 @@ private:
     ActionObserver(WebView::Action& action, QAction& qaction)
         : m_action(&qaction)
     {
-        QObject::connect(m_action, &QAction::triggered, [weak_action = action.make_weak_ptr()](bool checked) {
+        Ladybird::connect(&qaction, SIGNAL(triggered(bool)), &qaction, [weak_action = action.make_weak_ptr()](bool checked) {
             if (auto action = weak_action.strong_ref()) {
                 if (action->is_checkable())
                     action->set_checked(checked);
                 action->activate();
             }
         });
-        QObject::connect(m_action->parent(), &QObject::destroyed, [this, weak_action = action.make_weak_ptr()]() {
+        // Watch the action, which goes with its parent, rather than the parent: a widget deletes its
+        // children before it emits destroyed(), so a connection made in its name would be gone.
+        Ladybird::connect(&qaction, SIGNAL(destroyed()), &qaction, [this, weak_action = action.make_weak_ptr()]() {
             if (auto action = weak_action.strong_ref())
                 action->remove_observer(*this);
         });
@@ -341,7 +344,7 @@ QMenu* create_context_menu(QWidget& parent, WebContentView& view, WebView::Menu&
 {
     auto* application_menu = create_application_menu(parent, menu);
 
-    menu.on_activation = [view = QPointer { &view }, application_menu = QPointer { application_menu }](Gfx::IntPoint position) {
+    menu.on_activation = [view = QPointer<WebContentView> { &view }, application_menu = QPointer<QMenu> { application_menu }](Gfx::IntPoint position) {
         if (view && application_menu)
             application_menu->exec(view->map_point_to_global_position(position));
     };

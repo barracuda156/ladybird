@@ -35,13 +35,13 @@ public:
         setMouseTracking(true);
     }
 
-    virtual void enterEvent(QEnterEvent* event) override
+    virtual void enterEvent(QEvent* event) override
     {
         emit mouse_entered(event);
     }
 
 signals:
-    void mouse_entered(QEnterEvent*);
+    void mouse_entered(QEvent*);
 };
 
 class Tab final : public QWidget {

@@ -11,11 +11,12 @@
 #include <AK/Vector.h>
 #include <LibGfx/ImageFormats/TinyVGLoader.h>
 
-#include <QIconEngine>
+#include <QIconEngineV2>
 
 namespace Ladybird {
 
-class TVGIconEngine : public QIconEngine {
+// Qt 4 copies an icon's engine only through QIconEngineV2::clone().
+class TVGIconEngine : public QIconEngineV2 {
 public:
     TVGIconEngine(Gfx::TinyVGDecodedImageData const& image_data)
         : m_image_data(image_data)
@@ -25,7 +26,7 @@ public:
     static TVGIconEngine* from_file(QString const& path);
 
     void paint(QPainter* painter, QRect const& rect, QIcon::Mode mode, QIcon::State state) override;
-    QIconEngine* clone() const override;
+    QIconEngineV2* clone() const override;
     QPixmap pixmap(QSize const& size, QIcon::Mode mode, QIcon::State state) override;
 
     void add_filter(QIcon::Mode mode, Function<Color(Color)> filter);

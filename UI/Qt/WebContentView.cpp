@@ -11,6 +11,7 @@
 #include <AK/Format.h>
 #include <AK/LexicalPath.h>
 #include <AK/NonnullOwnPtr.h>
+#include <AK/Time.h>
 #include <AK/Types.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/Resource.h>
@@ -26,12 +27,13 @@
 #include <LibWebView/Application.h>
 #include <LibWebView/WebContentClient.h>
 #include <UI/Qt/Application.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/WebContentView.h>
 
 #include <QApplication>
 #include <QCursor>
-#include <QGuiApplication>
+#include <QDesktopWidget>
 #include <QIcon>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -59,21 +61,23 @@ WebContentView::WebContentView(QWidget* window, RefPtr<WebView::WebContentClient
 
     setFocusPolicy(Qt::FocusPolicy::StrongFocus);
 
-    m_device_pixel_ratio = devicePixelRatio();
+    // Qt 4 does not scale for high-density displays.
+    m_device_pixel_ratio = 1.0;
     m_maximum_frames_per_second = initial_state.maximum_frames_per_second;
     set_page_background_color_to_system_canvas(is_using_dark_system_theme(*this));
 
-    QObject::connect(qGuiApp, &QGuiApplication::screenRemoved, [this](QScreen*) {
+    // Qt 4 reports changes of the screens through QDesktopWidget.
+    auto* desktop = QApplication::desktop();
+    Ladybird::connect(desktop, SIGNAL(screenCountChanged(int)), this, [this] {
         update_screen_rects();
     });
-
-    QObject::connect(qGuiApp, &QGuiApplication::screenAdded, [this](QScreen*) {
+    Ladybird::connect(desktop, SIGNAL(resized(int)), this, [this] {
         update_screen_rects();
     });
 
     m_tooltip_hover_timer.setSingleShot(true);
 
-    QObject::connect(&m_tooltip_hover_timer, &QTimer::timeout, [this] {
+    Ladybird::connect(&m_tooltip_hover_timer, SIGNAL(timeout()), this, [this] {
         if (m_tooltip_text.has_value())
             QToolTip::showText(
                 QCursor::pos(),
@@ -84,6 +88,7 @@ WebContentView::WebContentView(QWidget* window, RefPtr<WebView::WebContentClient
     initialize_client((parent_client == nullptr) ? CreateNewClient::Yes : CreateNewClient::No);
 
     on_ready_to_paint = [this]() {
+        m_page_image_bitmap = nullptr;
         update();
     };
 
@@ -128,7 +133,7 @@ WebContentView::WebContentView(QWidget* window, RefPtr<WebView::WebContentClient
     };
 
     m_select_dropdown = new QMenu("Select Dropdown", this);
-    QObject::connect(m_select_dropdown, &QMenu::aboutToHide, this, [this]() {
+    Ladybird::connect(m_select_dropdown, SIGNAL(aboutToHide()), this, [this]() {
         if (!m_select_dropdown->activeAction())
             select_dropdown_closed({});
     });
@@ -143,7 +148,9 @@ WebContentView::WebContentView(QWidget* window, RefPtr<WebView::WebContentClient
             action->setChecked(item_option.selected);
             action->setDisabled(item_option.disabled);
             action->setData(QVariant(static_cast<uint>(item_option.id)));
-            QObject::connect(action, &QAction::triggered, this, &WebContentView::select_dropdown_action);
+            Ladybird::connect(action, SIGNAL(triggered()), this, [this, action] {
+                select_dropdown_closed(action->data().value<uint>());
+            });
             m_select_dropdown->addAction(action);
         };
 
@@ -171,12 +178,6 @@ WebContentView::WebContentView(QWidget* window, RefPtr<WebView::WebContentClient
 
 WebContentView::~WebContentView() = default;
 
-void WebContentView::select_dropdown_action()
-{
-    QAction* action = qobject_cast<QAction*>(sender());
-    select_dropdown_closed(action->data().value<uint>());
-}
-
 static Web::UIEvents::MouseButton get_button_from_qt_mouse_button(Qt::MouseButton button)
 {
     if (button == Qt::MouseButton::LeftButton)
@@ -185,9 +186,9 @@ static Web::UIEvents::MouseButton get_button_from_qt_mouse_button(Qt::MouseButto
         return Web::UIEvents::MouseButton::Secondary;
     if (button == Qt::MouseButton::MiddleButton)
         return Web::UIEvents::MouseButton::Middle;
-    if (button == Qt::MouseButton::BackButton)
+    if (button == Qt::MouseButton::XButton1)
         return Web::UIEvents::MouseButton::Backward;
-    if (button == Qt::MouseButton::ForwardButton)
+    if (button == Qt::MouseButton::XButton2)
         return Web::UIEvents::MouseButton::Forward;
     return Web::UIEvents::MouseButton::None;
 }
@@ -201,9 +202,9 @@ static Web::UIEvents::MouseButton get_buttons_from_qt_mouse_buttons(Qt::MouseBut
         result |= Web::UIEvents::MouseButton::Secondary;
     if (buttons.testFlag(Qt::MouseButton::MiddleButton))
         result |= Web::UIEvents::MouseButton::Middle;
-    if (buttons.testFlag(Qt::MouseButton::BackButton))
+    if (buttons.testFlag(Qt::MouseButton::XButton1))
         result |= Web::UIEvents::MouseButton::Backward;
-    if (buttons.testFlag(Qt::MouseButton::ForwardButton))
+    if (buttons.testFlag(Qt::MouseButton::XButton2))
         result |= Web::UIEvents::MouseButton::Forward;
     return result;
 }
@@ -419,8 +420,11 @@ void WebContentView::mouseMoveEvent(QMouseEvent* event)
 
 void WebContentView::mousePressEvent(QMouseEvent* event)
 {
-    auto elapsed = event->timestamp() - m_last_click_timestamp;
-    auto distance = (event->position() - m_last_click_position).manhattanLength();
+    // Qt 4 events carry no timestamp.
+    auto timestamp = static_cast<u64>(MonotonicTime::now().milliseconds());
+    auto position = QPointF(event->pos());
+    auto elapsed = timestamp - m_last_click_timestamp;
+    auto distance = (position - m_last_click_position).manhattanLength();
 
     if (elapsed < static_cast<u64>(QApplication::doubleClickInterval()) && distance < QApplication::startDragDistance()) {
         ++m_click_count;
@@ -429,8 +433,8 @@ void WebContentView::mousePressEvent(QMouseEvent* event)
     } else {
         m_click_count = 1;
     }
-    m_last_click_timestamp = event->timestamp();
-    m_last_click_position = event->position();
+    m_last_click_timestamp = timestamp;
+    m_last_click_position = position;
 
     enqueue_native_event(Web::MouseEvent::Type::MouseDown, *event);
 }
@@ -439,9 +443,9 @@ void WebContentView::mouseReleaseEvent(QMouseEvent* event)
 {
     enqueue_native_event(Web::MouseEvent::Type::MouseUp, *event);
 
-    if (event->button() == Qt::MouseButton::BackButton)
+    if (event->button() == Qt::MouseButton::XButton1)
         traverse_the_history_by_delta(-1);
-    else if (event->button() == Qt::MouseButton::ForwardButton)
+    else if (event->button() == Qt::MouseButton::XButton2)
         traverse_the_history_by_delta(1);
 }
 
@@ -520,8 +524,12 @@ void WebContentView::paintEvent(QPaintEvent*)
     }
 
     if (bitmap) {
-        QImage q_image(bitmap->scanline_u8(0), bitmap->width(), bitmap->height(), bitmap->pitch(), QImage::Format_RGB32);
-        painter.drawImage(QPoint(0, 0), q_image, QRect(0, 0, bitmap_size.width(), bitmap_size.height()));
+        if (bitmap != m_page_image_bitmap || bitmap_size != m_page_image_size) {
+            m_page_image = qimage_from_bitmap(*bitmap, bitmap_size, true);
+            m_page_image_bitmap = bitmap;
+            m_page_image_size = bitmap_size;
+        }
+        painter.drawImage(QPoint(0, 0), m_page_image);
 
         auto background_color = page_background_color();
         auto fallback_color = QColor(background_color.red(), background_color.green(), background_color.blue());
@@ -639,22 +647,17 @@ void WebContentView::update_palette(PaletteMode mode)
 
 void WebContentView::update_screen_rects()
 {
-    auto screens = QGuiApplication::screens();
+    auto* desktop = QApplication::desktop();
+    auto screen_count = desktop->screenCount();
 
-    if (!screens.empty()) {
+    if (screen_count > 0) {
         Vector<Web::DevicePixelRect> screen_rects;
-        for (auto const& screen : screens) {
-            // NOTE: QScreen::geometry() returns the 'device-independent pixels', we multiply
-            //       by the device pixel ratio to get the 'physical pixels' of the display.
-            auto geometry = screen->geometry();
-            auto device_pixel_ratio = screen->devicePixelRatio();
-            screen_rects.append(Web::DevicePixelRect(geometry.x(), geometry.y(), geometry.width() * device_pixel_ratio, geometry.height() * device_pixel_ratio));
+        for (int i = 0; i < screen_count; ++i) {
+            auto geometry = desktop->screenGeometry(i);
+            screen_rects.append(Web::DevicePixelRect(geometry.x(), geometry.y(), geometry.width(), geometry.height()));
         }
 
-        // NOTE: The first item in QGuiApplication::screens is always the primary screen.
-        //       This is not specified in the documentation but QGuiApplication::primaryScreen
-        //       always returns the first item in the list if it isn't empty.
-        client().async_update_screen_rects(m_client_state.page_index, screen_rects, 0);
+        client().async_update_screen_rects(m_client_state.page_index, screen_rects, desktop->primaryScreen());
     }
 }
 
@@ -737,7 +740,7 @@ void WebContentView::update_cursor(Gfx::Cursor cursor)
                 return;
             }
             auto const& bitmap = *image_cursor.bitmap.bitmap();
-            auto qimage = QImage { bitmap.scanline_u8(0), bitmap.width(), bitmap.height(), QImage::Format_ARGB32 };
+            auto qimage = qimage_from_bitmap(bitmap);
             if (qimage.isNull()) {
                 dbgln("Failed to set cursor: Null QImage.");
                 return;
@@ -798,42 +801,46 @@ bool WebContentView::event(QEvent* event)
     return QWidget::event(event);
 }
 
-void WebContentView::enqueue_native_event(Web::MouseEvent::Type type, QSinglePointEvent const& event)
+// Mouse and wheel events share no base class with a position in Qt 4.
+void WebContentView::enqueue_native_event(Web::MouseEvent::Type type, QMouseEvent const& event)
 {
-    Web::DevicePixelPoint position = { event.position().x() * m_device_pixel_ratio, event.position().y() * m_device_pixel_ratio };
-    auto screen_position = Gfx::IntPoint { event.globalPosition().x() * m_device_pixel_ratio, event.globalPosition().y() * m_device_pixel_ratio };
+    enqueue_mouse_event(type, event.pos(), event.globalPos(), event.button(), event.buttons(), event.modifiers(), 0, 0);
+}
 
-    auto button = get_button_from_qt_mouse_button(event.button());
-    auto buttons = get_buttons_from_qt_mouse_buttons(event.buttons());
-    auto modifiers = get_modifiers_from_qt_keyboard_modifiers(event.modifiers());
+void WebContentView::enqueue_native_event(Web::MouseEvent::Type type, QWheelEvent const& event)
+{
+    // Qt 4 gives the rotation of one wheel, in eighths of a degree, where later Qt has an angle
+    // per axis (and pixels, which Qt 4 does not know).
+    auto delta = event.delta();
+    auto angle_delta_x = event.orientation() == Qt::Horizontal ? delta : 0;
+    auto angle_delta_y = event.orientation() == Qt::Vertical ? delta : 0;
+
+    float delta_x = static_cast<float>(angle_delta_x) / 120.0f;
+    float delta_y = -static_cast<float>(angle_delta_y) / 120.0f;
+
+    static constexpr float scroll_step_size = 40;
+    auto step_x = delta_x * static_cast<float>(QApplication::wheelScrollLines()) * m_device_pixel_ratio;
+    auto step_y = delta_y * static_cast<float>(QApplication::wheelScrollLines()) * m_device_pixel_ratio;
+
+    auto wheel_delta_x = static_cast<int>(step_x * scroll_step_size);
+    auto wheel_delta_y = static_cast<int>(step_y * scroll_step_size);
+
+    enqueue_mouse_event(type, event.pos(), event.globalPos(), Qt::NoButton, event.buttons(), event.modifiers(), wheel_delta_x, wheel_delta_y);
+}
+
+void WebContentView::enqueue_mouse_event(Web::MouseEvent::Type type, QPoint widget_position, QPoint global_position, Qt::MouseButton qt_button, Qt::MouseButtons qt_buttons, Qt::KeyboardModifiers qt_modifiers, int wheel_delta_x, int wheel_delta_y)
+{
+    Web::DevicePixelPoint position = { widget_position.x() * m_device_pixel_ratio, widget_position.y() * m_device_pixel_ratio };
+    auto screen_position = Gfx::IntPoint { global_position.x() * m_device_pixel_ratio, global_position.y() * m_device_pixel_ratio };
+
+    auto button = get_button_from_qt_mouse_button(qt_button);
+    auto buttons = get_buttons_from_qt_mouse_buttons(qt_buttons);
+    auto modifiers = get_modifiers_from_qt_keyboard_modifiers(qt_modifiers);
 
     if (button == 0 && (type == Web::MouseEvent::Type::MouseDown || type == Web::MouseEvent::Type::MouseUp)) {
         // We could not convert Qt buttons to something that LibWeb can recognize - don't even bother propagating this
         // to the web engine as it will not handle it anyway, and it will (currently) assert.
         return;
-    }
-
-    int wheel_delta_x = 0;
-    int wheel_delta_y = 0;
-
-    if (type == Web::MouseEvent::Type::MouseWheel) {
-        auto const& wheel_event = static_cast<QWheelEvent const&>(event);
-
-        if (auto pixel_delta = -wheel_event.pixelDelta(); !pixel_delta.isNull()) {
-            wheel_delta_x = pixel_delta.x();
-            wheel_delta_y = pixel_delta.y();
-        } else {
-            auto angle_delta = -wheel_event.angleDelta();
-            float delta_x = -static_cast<float>(angle_delta.x()) / 120.0f;
-            float delta_y = static_cast<float>(angle_delta.y()) / 120.0f;
-
-            static constexpr float scroll_step_size = 40;
-            auto step_x = delta_x * static_cast<float>(QApplication::wheelScrollLines()) * m_device_pixel_ratio;
-            auto step_y = delta_y * static_cast<float>(QApplication::wheelScrollLines()) * m_device_pixel_ratio;
-
-            wheel_delta_x = static_cast<int>(step_x * scroll_step_size);
-            wheel_delta_y = static_cast<int>(step_y * scroll_step_size);
-        }
     }
 
     enqueue_input_event(Web::MouseEvent { type, position, screen_position.to_type<Web::DevicePixels>(), button, buttons, modifiers, wheel_delta_x, wheel_delta_y, m_click_count, nullptr });
@@ -850,14 +857,14 @@ struct DragData : Web::BrowserInputData {
 
 void WebContentView::enqueue_native_event(Web::DragEvent::Type type, QDropEvent const& event)
 {
-    Web::DevicePixelPoint position = { event.position().x() * m_device_pixel_ratio, event.position().y() * m_device_pixel_ratio };
+    Web::DevicePixelPoint position = { event.pos().x() * m_device_pixel_ratio, event.pos().y() * m_device_pixel_ratio };
 
-    auto global_position = mapToGlobal(event.position());
+    auto global_position = mapToGlobal(event.pos());
     auto screen_position = Gfx::IntPoint { global_position.x() * m_device_pixel_ratio, global_position.y() * m_device_pixel_ratio };
 
     auto button = get_button_from_qt_mouse_button(Qt::LeftButton);
-    auto buttons = get_buttons_from_qt_mouse_buttons(event.buttons());
-    auto modifiers = get_modifiers_from_qt_keyboard_modifiers(event.modifiers());
+    auto buttons = get_buttons_from_qt_mouse_buttons(event.mouseButtons());
+    auto modifiers = get_modifiers_from_qt_keyboard_modifiers(event.keyboardModifiers());
 
     Vector<Web::HTML::SelectedFile> files;
     OwnPtr<DragData> browser_data;
@@ -890,8 +897,9 @@ void WebContentView::finish_handling_drag_event(Web::DragEvent const& event)
 }
 
 struct KeyData : Web::BrowserInputData {
+    // Qt 4 events cannot clone themselves; this copy keeps the native key data as well.
     explicit KeyData(QKeyEvent const& event)
-        : event(adopt_own(*event.clone()))
+        : event(adopt_own(*QKeyEvent::createExtendedKeyEvent(event.type(), event.key(), event.modifiers(), event.nativeScanCode(), event.nativeVirtualKey(), event.nativeModifiers(), event.text(), event.isAutoRepeat(), event.count())))
     {
     }
 

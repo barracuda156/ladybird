@@ -10,6 +10,7 @@
 #include <LibWebView/Autocomplete.h>
 #include <UI/Qt/Autocomplete.h>
 #include <UI/Qt/Icon.h>
+#include <UI/Qt/Qt4Compat.h>
 #include <UI/Qt/StringUtils.h>
 
 #include <QAbstractListModel>
@@ -380,13 +381,13 @@ Autocomplete::Autocomplete(QLineEdit* anchor)
     layout->setSpacing(0);
     layout->addWidget(m_list_view);
 
-    connect(m_list_view, &QAbstractItemView::clicked, this, [this](QModelIndex const& index) {
+    Ladybird::connect(m_list_view, SIGNAL(clicked(QModelIndex)), this, [this](QModelIndex const& index) {
         if (!is_selectable_row(index.row()))
             return;
         emit suggestion_activated(index.data(UrlRole).toString());
     });
 
-    connect(m_list_view, &QAbstractItemView::entered, this, [this](QModelIndex const& index) {
+    Ladybird::connect(m_list_view, SIGNAL(entered(QModelIndex)), this, [this](QModelIndex const& index) {
         if (!is_selectable_row(index.row()))
             return;
         if (m_list_view->currentIndex() == index)
@@ -517,7 +518,7 @@ bool Autocomplete::eventFilter(QObject* watched, QEvent* event)
 {
     if (event->type() == QEvent::MouseButtonPress && is_visible()) {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
-        auto global = mouse_event->globalPosition().toPoint();
+        auto global = mouse_event->globalPos();
         auto popup_global = QRect(m_popup->mapToGlobal(QPoint(0, 0)), m_popup->size());
         auto anchor_global = QRect(m_anchor->mapToGlobal(QPoint(0, 0)), m_anchor->size());
         if (!popup_global.contains(global) && !anchor_global.contains(global))

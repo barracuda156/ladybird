@@ -18,6 +18,7 @@
 #include <LibThreading/RWLock.h>
 #include <UI/Qt/EventLoopImplementationQt.h>
 #include <UI/Qt/EventLoopImplementationQtEventTarget.h>
+#include <UI/Qt/Qt4Compat.h>
 
 #include <QCoreApplication>
 #include <QEvent>
@@ -269,11 +270,10 @@ static void qt_timer_fired(Core::EventReceiver& object)
 intptr_t EventLoopManagerQt::register_timer(Core::EventReceiver& object, int milliseconds, bool should_reload)
 {
     auto timer = new QTimer;
-    timer->setTimerType(Qt::PreciseTimer);
     timer->setInterval(milliseconds);
     timer->setSingleShot(!should_reload);
     auto weak_object = object.make_weak_ptr();
-    QObject::connect(timer, &QTimer::timeout, [weak_object = move(weak_object)] {
+    Ladybird::connect(timer, SIGNAL(timeout()), timer, [weak_object = move(weak_object)] {
         auto object = weak_object.strong_ref();
         if (!object)
             return;
@@ -309,7 +309,7 @@ void EventLoopManagerQt::register_notifier(Core::Notifier& notifier)
         TODO();
     }
     auto socket_notifier = make<QSocketNotifier>(notifier.fd(), type);
-    QObject::connect(socket_notifier, &QSocketNotifier::activated, [weak_notifier = notifier.make_weak_ptr()] {
+    Ladybird::connect(socket_notifier.ptr(), SIGNAL(activated(int)), socket_notifier.ptr(), [weak_notifier = notifier.make_weak_ptr()] {
         if (!weak_notifier)
             return;
         qt_notifier_activated(static_cast<Core::Notifier&>(*weak_notifier));
@@ -331,8 +331,8 @@ void EventLoopManagerQt::unregister_notifier(Core::Notifier& notifier)
     Threading::MutexLocker locker(thread_data->mutex);
     auto deleted_notifier = thread_data->notifiers.take(&notifier).release_value();
     if (QThread::currentThread() != deleted_notifier->thread()) {
-        auto* deleted_notifier_ptr = deleted_notifier.ptr();
-        QMetaObject::invokeMethod(deleted_notifier_ptr, [deleted_notifier = move(deleted_notifier)] { }, Qt::QueuedConnection);
+        // Delete it on the thread it belongs to.
+        deleted_notifier.leak_ptr()->deleteLater();
     }
 }
 
@@ -399,7 +399,7 @@ void EventLoopManagerQt::set_main_loop_signal_notifiers(Badge<EventLoopImplement
 {
     MUST(Core::System::socketpair(AF_LOCAL, SOCK_STREAM, 0, m_signal_socket_fds));
     m_signal_socket_notifier = new QSocketNotifier(m_signal_socket_fds[0], QSocketNotifier::Read);
-    QObject::connect(m_signal_socket_notifier, &QSocketNotifier::activated, [this] {
+    Ladybird::connect(m_signal_socket_notifier, SIGNAL(activated(int)), m_signal_socket_notifier, [this] {
         int signal_number = {};
         ssize_t nread;
         do {
