@@ -83,7 +83,6 @@ JS_DEFINE_NATIVE_FUNCTION(DateTimeFormatConstructor::supported_locales_of)
 
 // 11.1.2 CreateDateTimeFormat ( newTarget, locales, options, required, defaults ), https://tc39.es/ecma402/#sec-createdatetimeformat
 // 15.4.1 CreateDateTimeFormat ( newTarget, locales, options, required, defaults [ , toLocaleStringTimeZone ] ), https://tc39.es/proposal-temporal/#sec-createdatetimeformat
-// 3.1.1 CreateDateTimeFormat ( newTarget, locales, options, required, defaults ), https://tc39.es/proposal-intl-era-monthcode/#sec-ecma402-intl-datetimeformat-constructor
 ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, FunctionObject& new_target, Value locales_value, Value options_value, OptionRequired required, OptionDefaults defaults, Optional<String> const& to_locale_string_time_zone)
 {
     // 1. Let dateTimeFormat be ? OrdinaryCreateFromConstructor(newTarget, "%Intl.DateTimeFormat.prototype%", « [[InitializedDateTimeFormat]], [[Locale]], [[Calendar]], [[NumberingSystem]], [[TimeZone]], [[HourCycle]], [[DateStyle]], [[TimeStyle]], [[DateTimeFormat]], [[BoundFormat]] »).
@@ -112,45 +111,31 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
 
     // 7. Set dateTimeFormat.[[Locale]] to r.[[Locale]].
     date_time_format->set_locale(move(result.locale));
-
-    // 8. Let resolvedCalendar be r.[[ca]].
-    if (auto* resolved_calendar = result.ca.get_pointer<String>()) {
-        // 9. If resolvedCalendar is "islamic", then
-        // NB: We also make "islamic-rgsa" fall back to "islamic-tbla", as test262 relies on this behavior. This falls
-        //     within implementation-defined behavior. See:
-        //     https://github.com/tc39/ecma402/pull/1044#discussion_r2926804980
-        if (resolved_calendar->is_one_of("islamic"sv, "islamic-rgsa"sv)) {
-            // a. Set resolvedCalendar to "islamic-tbla".
-            *resolved_calendar = "islamic-tbla"_string;
-
-            // b. If the ECMAScript implementation has a mechanism for reporting diagnostic warning messages, a warning
-            //    should be issued.
-        }
-
-        // 10. Set dateTimeFormat.[[Calendar]] to resolvedCalendar.
-        date_time_format->set_calendar(move(*resolved_calendar));
-    }
-
     date_time_format->set_icu_locale(move(result.icu_locale));
 
-    // 11. Set dateTimeFormat.[[NumberingSystem]] to r.[[nu]].
+    // 8. Let resolvedCalendar be r.[[ca]].
+    // 9. Set dateTimeFormat.[[Calendar]] to resolvedCalendar.
+    if (auto* resolved_calendar = result.ca.get_pointer<String>())
+        date_time_format->set_calendar(move(*resolved_calendar));
+
+    // 10. Set dateTimeFormat.[[NumberingSystem]] to r.[[nu]].
     if (auto* resolved_numbering_system = result.nu.get_pointer<String>())
         date_time_format->set_numbering_system(move(*resolved_numbering_system));
 
-    // 12. Let resolvedLocaleData be r.[[LocaleData]].
+    // 11. Let resolvedLocaleData be r.[[LocaleData]].
 
     Optional<Unicode::HourCycle> hour_cycle_value;
     Optional<bool> hour12_value;
 
-    // 13. If hour12 is true, then
+    // 12. If hour12 is true, then
     //     a. Let hc be resolvedLocaleData.[[hourCycle12]].
-    // 14. Else if hour12 is false, then
+    // 13. Else if hour12 is false, then
     //     a. Let hc be resolvedLocaleData.[[hourCycle24]].
     if (hour12.is_boolean()) {
         // NOTE: We let LibUnicode figure out the appropriate hour cycle.
         hour12_value = hour12.as_bool();
     }
-    // 15. Else,
+    // 14. Else,
     else {
         // a. Assert: hour12 is undefined.
         VERIFY(hour12.is_undefined());
@@ -164,14 +149,14 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
             hour_cycle_value = Unicode::default_hour_cycle(date_time_format->locale());
     }
 
-    // 16. Set dateTimeFormat.[[HourCycle]] to hc.
+    // 15. Set dateTimeFormat.[[HourCycle]] to hc.
     // NOTE: The [[HourCycle]] is stored and accessed from [[DateTimeFormat]].
 
-    // 17. Let timeZone be ? Get(options, "timeZone").
+    // 16. Let timeZone be ? Get(options, "timeZone").
     auto time_zone_value = TRY(options->get(vm.names.timeZone));
     String time_zone;
 
-    // 18. If timeZone is undefined, then
+    // 17. If timeZone is undefined, then
     if (time_zone_value.is_undefined()) {
         // a. If toLocaleStringTimeZone is present, then
         if (to_locale_string_time_zone.has_value()) {
@@ -184,7 +169,7 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
             time_zone = system_time_zone_identifier();
         }
     }
-    // 19. Else,
+    // 18. Else,
     else {
         // a. If toLocaleStringTimeZone is present, throw a TypeError exception.
         if (to_locale_string_time_zone.has_value())
@@ -194,7 +179,7 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
         time_zone = TRY(time_zone_value.to_string(vm));
     }
 
-    // 20. If IsTimeZoneOffsetString(timeZone) is true, then
+    // 19. If IsTimeZoneOffsetString(timeZone) is true, then
     bool is_time_zone_offset_string = JS::is_offset_time_zone_identifier(time_zone);
 
     if (is_time_zone_offset_string) {
@@ -213,7 +198,7 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
         // e. Set timeZone to FormatOffsetTimeZoneIdentifier(offsetMinutes).
         time_zone = format_offset_time_zone_identifier(offset_minutes);
     }
-    // 21. Else,
+    // 20. Else,
     else {
         // a. Let timeZoneIdentifierRecord be GetAvailableNamedTimeZoneIdentifier(timeZone).
         auto time_zone_identifier_record = get_available_named_time_zone_identifier(time_zone);
@@ -226,7 +211,7 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
         time_zone = time_zone_identifier_record->identifier;
     }
 
-    // 22. Set dateTimeFormat.[[TimeZone]] to timeZone.
+    // 21. Set dateTimeFormat.[[TimeZone]] to timeZone.
     date_time_format->set_time_zone(time_zone);
 
     // NOTE: ICU requires time zone offset strings to be of the form "GMT+00:00"
@@ -236,18 +221,18 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
     // AD-HOC: We must store the massaged time zone for creating ICU formatters for Temporal objects.
     date_time_format->set_temporal_time_zone(time_zone);
 
-    // 23. Let formatOptions be a new Record.
+    // 22. Let formatOptions be a new Record.
     Unicode::CalendarPattern format_options {};
 
-    // 24. Set formatOptions.[[hourCycle]] to hc.
+    // 23. Set formatOptions.[[hourCycle]] to hc.
     format_options.hour_cycle = hour_cycle_value;
     format_options.hour12 = hour12_value;
 
-    // 25. Let hasExplicitFormatComponents be false.
+    // 24. Let hasExplicitFormatComponents be false.
     // NOTE: Instead of using a boolean, we track any explicitly provided component name for nicer exception messages.
     PropertyKey const* explicit_format_component = nullptr;
 
-    // 26. For each row of Table 16, except the header row, in table order, do
+    // 25. For each row of Table 16, except the header row, in table order, do
     TRY(for_each_calendar_field(vm, format_options, [&](auto, auto& option, PropertyKey const& property, auto const& values) -> ThrowCompletionOr<void> {
         using ValueType = typename RemoveReference<decltype(option)>::ValueType;
 
@@ -286,28 +271,28 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
         return {};
     }));
 
-    // 27. Let formatMatcher be ? GetOption(options, "formatMatcher", string, « "basic", "best fit" », "best fit").
+    // 26. Let formatMatcher be ? GetOption(options, "formatMatcher", string, « "basic", "best fit" », "best fit").
     [[maybe_unused]] auto format_matcher = TRY(get_option(vm, *options, vm.names.formatMatcher, OptionType::String, AK::Array { "basic"sv, "best fit"sv }, "best fit"sv));
 
-    // 28. Let dateStyle be ? GetOption(options, "dateStyle", string, « "full", "long", "medium", "short" », undefined).
+    // 27. Let dateStyle be ? GetOption(options, "dateStyle", string, « "full", "long", "medium", "short" », undefined).
     auto date_style = TRY(get_option(vm, *options, vm.names.dateStyle, OptionType::String, AK::Array { "full"sv, "long"sv, "medium"sv, "short"sv }, Empty {}));
 
-    // 29. Set dateTimeFormat.[[DateStyle]] to dateStyle.
+    // 28. Set dateTimeFormat.[[DateStyle]] to dateStyle.
     if (!date_style.is_undefined())
         date_time_format->set_date_style(date_style.as_string().utf8_string_view());
 
-    // 30. Let timeStyle be ? GetOption(options, "timeStyle", string, « "full", "long", "medium", "short" », undefined).
+    // 29. Let timeStyle be ? GetOption(options, "timeStyle", string, « "full", "long", "medium", "short" », undefined).
     auto time_style = TRY(get_option(vm, *options, vm.names.timeStyle, OptionType::String, AK::Array { "full"sv, "long"sv, "medium"sv, "short"sv }, Empty {}));
 
-    // 31. Set dateTimeFormat.[[TimeStyle]] to timeStyle.
+    // 30. Set dateTimeFormat.[[TimeStyle]] to timeStyle.
     if (!time_style.is_undefined())
         date_time_format->set_time_style(time_style.as_string().utf8_string_view());
 
-    // 32. Let formats be resolvedLocaleData.[[formats]].[[<resolvedCalendar>]].
+    // 31. Let formats be resolvedLocaleData.[[formats]].[[<resolvedCalendar>]].
 
     OwnPtr<Unicode::DateTimeFormat> formatter;
 
-    // 33. If dateStyle is not undefined or timeStyle is not undefined, then
+    // 32. If dateStyle is not undefined or timeStyle is not undefined, then
     if (date_time_format->has_date_style() || date_time_format->has_time_style()) {
         // a. If hasExplicitFormatComponents is true, then
         if (explicit_format_component != nullptr) {
@@ -379,7 +364,7 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
         // k. Set dateTimeFormat.[[TemporalInstantFormat]] to bestFormat.
         date_time_format->set_temporal_instant_format(move(best_format));
     }
-    // 34. Else,
+    // 33. Else,
     else {
         // a. Let bestFormat be GetDateTimeFormat(formats, formatMatcher, formatOptions, required, defaults, ALL).
         auto best_format = get_date_time_format(format_options, required, defaults, OptionInherit::All).release_value();
@@ -423,13 +408,13 @@ ThrowCompletionOr<GC::Ref<DateTimeFormat>> create_date_time_format(VM& vm, Funct
             best_format);
     }
 
-    // 35. Set dateTimeFormat.[[DateTimeFormat]] to bestFormat.
+    // 34. Set dateTimeFormat.[[DateTimeFormat]] to bestFormat.
     date_time_format->set_date_time_format(formatter->chosen_pattern());
 
     // Non-standard, create an ICU number formatter for this Intl object.
     date_time_format->set_formatter(formatter.release_nonnull());
 
-    // 36. Return dateTimeFormat.
+    // 35. Return dateTimeFormat.
     return date_time_format;
 }
 
