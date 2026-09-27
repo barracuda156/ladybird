@@ -64,10 +64,6 @@ static char const* primary_accelerator_for_action(WebView::ActionID id)
         return "<Ctrl>v";
     case WebView::ActionID::SelectAll:
         return "<Ctrl>a";
-    case WebView::ActionID::ToggleBookmark:
-        return "<Ctrl>d";
-    case WebView::ActionID::ToggleBookmarksBar:
-        return "<Ctrl><Shift>b";
     case WebView::ActionID::OpenProcessesPage:
         return "<Ctrl><Shift>m";
     case WebView::ActionID::OpenSettingsPage:
@@ -138,19 +134,6 @@ static void initialize_native_control(WebView::Action& action, GSimpleAction* ga
     case WebView::ActionID::TakeVisibleScreenshot:
     case WebView::ActionID::TakeFullScreenshot:
         set_icon("image-x-generic-symbolic");
-        break;
-
-    case WebView::ActionID::ToggleBookmark:
-    case WebView::ActionID::ToggleBookmarkViaToolbar:
-        set_icon(action.engaged() ? "starred-symbolic" : "non-starred-symbolic");
-        set_accel("<Ctrl>d");
-        break;
-    case WebView::ActionID::ToggleBookmarksBar:
-        set_icon("user-bookmarks-symbolic");
-        set_accel("<Ctrl><Shift>b");
-        break;
-    case WebView::ActionID::BookmarkItem:
-        set_icon("globe-symbolic");
         break;
 
     case WebView::ActionID::OpenAboutPage:
@@ -304,10 +287,6 @@ static void add_items_to_menu(GMenu& menu, ReadonlySpan<WebView::Menu::MenuItem>
                 GObjectPtr submenu_model { create_application_menu(*submenu, detailed_action_name_for_action) };
                 auto title = submenu->title().to_byte_string();
                 GObjectPtr gitem { g_menu_item_new_submenu(title.characters(), G_MENU_MODEL(submenu_model.ptr())) };
-
-                if (submenu->render_group_icon())
-                    set_menu_item_icon_name(G_MENU_ITEM(gitem.ptr()), "folder-symbolic");
-
                 g_menu_append_item(G_MENU(current_section.ptr()), G_MENU_ITEM(gitem.ptr()));
                 section_has_items = true;
             },
@@ -435,8 +414,6 @@ void install_action_accelerators(GtkApplication* application, char const* detail
     }
     case WebView::ActionID::NavigateBack:
     case WebView::ActionID::NavigateForward:
-    case WebView::ActionID::ToggleBookmark:
-    case WebView::ActionID::ToggleBookmarksBar:
     case WebView::ActionID::OpenProcessesPage:
     case WebView::ActionID::OpenSettingsPage:
     case WebView::ActionID::ViewSource:
