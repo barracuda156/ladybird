@@ -189,7 +189,7 @@ public:
         auto description = TRY(get_audio_unit_property<AudioStreamBasicDescription>(state->m_audio_unit, kAudioUnitProperty_StreamFormat));
 
         description->mFormatID = kAudioFormatLinearPCM;
-        description->mFormatFlags = kLinearPCMFormatFlagIsFloat | kLinearPCMFormatFlagIsPacked;
+        description->mFormatFlags = kLinearPCMFormatFlagIsFloat | kLinearPCMFormatFlagIsPacked | kAudioFormatFlagsNativeEndian;
 
         TRY(set_audio_unit_property(state->m_audio_unit, kAudioUnitProperty_StreamFormat, description));
 
