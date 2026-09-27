@@ -313,7 +313,7 @@ def generate_class(op: OpDef) -> str:
     # Emit set_cache() for ops that have a cache pointer field.
     has_cache = any(f.name == "m_cache" and is_cache_pointer_type(f.type) for f in op.fields)
     if has_cache:
-        lines.append("    void set_cache(u64 value) { m_cache = value; }")
+        lines.append("    void set_cache(FlatPtr value) { m_cache = value; }")
 
     lines.append("")
     lines.append("private:")
@@ -360,7 +360,7 @@ NUMERIC_TYPES = {
     "size_t",
 }
 
-# Cache pointer types stored as u64 in the instruction stream.
+# Cache pointer types stored as pointer-sized integers in the instruction stream.
 # The Executable::fixup_cache_pointers() pass replaces indices with actual pointers.
 CACHE_POINTER_TYPES = {
     "PropertyLookupCache*": "property_lookup_caches",
@@ -377,7 +377,7 @@ def is_cache_pointer_type(t: str) -> bool:
 def cpp_type_for_field(t: str) -> str:
     """Return the C++ storage type for a Bytecode.def field type."""
     if is_cache_pointer_type(t):
-        return "u64"
+        return "FlatPtr"
     return t
 
 
@@ -588,7 +588,7 @@ def generate_fixup_cache_function(ops: List[OpDef]) -> str:
     lines.append("    Span<ObjectShapeCache> object_shape_caches)")
     lines.append("{")
     lines.append('    // Sentinel value used to indicate "no cache" (originally u32::MAX).')
-    lines.append("    static constexpr u64 NO_CACHE = NumericLimits<u32>::max();")
+    lines.append("    static constexpr FlatPtr NO_CACHE = NumericLimits<u32>::max();")
     lines.append("    switch (insn.type()) {")
 
     for op in ops:
@@ -605,7 +605,7 @@ def generate_fixup_cache_function(ops: List[OpDef]) -> str:
         lines.append(f"        auto& op = static_cast<Op::{op.name}&>(insn);")
         lines.append("        auto index = op.cache();")
         lines.append("        if (index != NO_CACHE)")
-        lines.append(f"            op.set_cache(bit_cast<u64>(&{vector_name}[index]));")
+        lines.append(f"            op.set_cache(bit_cast<FlatPtr>(&{vector_name}[index]));")
         lines.append("        else")
         lines.append("            op.set_cache(0);")
         lines.append("        break;")
