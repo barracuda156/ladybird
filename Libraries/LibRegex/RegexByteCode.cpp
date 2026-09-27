@@ -642,7 +642,7 @@ ALWAYS_INLINE ExecutionResult OpCode_SaveRightNamedCaptureGroup<ByteCode>::execu
         }
     }
 
-    state.mutable_capture_group_matches(input.match_index).at(id() - 1) = { view, name_string_table_index(), input.line, start_position, input.global_offset + start_position };
+    state.mutable_capture_group_matches(input.match_index).at(id() - 1) = { view, static_cast<i64>(name_string_table_index()), input.line, start_position, input.global_offset + start_position };
 
     return ExecutionResult::Continue;
 }
