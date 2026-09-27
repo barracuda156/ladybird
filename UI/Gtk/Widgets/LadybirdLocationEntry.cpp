@@ -17,7 +17,7 @@
 
 struct LocationEntryState {
     NonnullOwnPtr<WebView::Autocomplete> autocomplete;
-    Vector<String> suggestions;
+    Vector<WebView::AutocompleteSuggestion> suggestions;
     int selected_index { -1 };
     String user_text;
     bool is_focused { false };
@@ -102,7 +102,7 @@ static void ladybird_location_entry_init(LadybirdLocationEntry* self)
     g_signal_connect_swapped(self->list_box, "row-activated", G_CALLBACK(+[](LadybirdLocationEntry* self, GtkListBoxRow* row) {
         auto index = gtk_list_box_row_get_index(row);
         if (index >= 0 && static_cast<size_t>(index) < self->state->suggestions.size()) {
-            set_entry_text_suppressed(self, self->state->suggestions[index].to_byte_string().characters());
+            set_entry_text_suppressed(self, self->state->suggestions[index].text.to_byte_string().characters());
             ladybird_location_entry_hide_completions(self);
             ladybird_location_entry_navigate(self);
         }
@@ -110,7 +110,7 @@ static void ladybird_location_entry_init(LadybirdLocationEntry* self)
         self);
 
     // Autocomplete results callback
-    self->state->autocomplete->on_autocomplete_query_complete = [self](auto suggestions) {
+    self->state->autocomplete->on_autocomplete_query_complete = [self](auto suggestions, auto) {
         if (suggestions.is_empty() || !self->state->is_focused) {
             ladybird_location_entry_hide_completions(self);
             return;
@@ -307,7 +307,7 @@ static void ladybird_location_entry_show_completions(LadybirdLocationEntry* self
         gtk_list_box_remove(self->list_box, child);
 
     for (auto const& suggestion : self->state->suggestions) {
-        auto byte_str = suggestion.to_byte_string();
+        auto byte_str = suggestion.text.to_byte_string();
         auto* label = gtk_label_new(byte_str.characters());
         gtk_label_set_xalign(GTK_LABEL(label), 0.0);
         gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
@@ -364,5 +364,5 @@ static void ladybird_location_entry_apply_selected_suggestion(LadybirdLocationEn
     if (state.selected_index < 0 || static_cast<size_t>(state.selected_index) >= state.suggestions.size())
         return;
 
-    set_entry_text_suppressed(self, state.suggestions[state.selected_index].to_byte_string().characters(), true);
+    set_entry_text_suppressed(self, state.suggestions[state.selected_index].text.to_byte_string().characters(), true);
 }

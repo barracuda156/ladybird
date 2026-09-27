@@ -290,6 +290,14 @@ void Application::insert_clipboard_entry(Web::Clipboard::SystemClipboardRepresen
         gdk_clipboard_set_text(clipboard, entry.data.characters());
 }
 
+void Application::rebuild_bookmarks_menu() const
+{
+}
+
+void Application::update_bookmarks_bar_display(bool) const
+{
+}
+
 void Application::on_devtools_enabled() const
 {
     WebView::Application::on_devtools_enabled();
