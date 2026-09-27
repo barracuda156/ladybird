@@ -1,18 +1,17 @@
 import("//Meta/gn/build/libs/ffmpeg/enable.gni")
 
 declare_args() {
-  # Select whether to look for ffmpeg in the homebrew installation
-  ffmpeg_homebrew = current_os == "mac"
+  # Select whether to look for ffmpeg in ports
+  ffmpeg_ports = current_os == "mac"
 
-  # Root directory for the homebrew installation
-  homebrew_prefix = "/opt/homebrew"
+  # Root directory for ports installation
+  ports_prefix = "/opt/local"
 }
 
 declare_args() {
-  # Root directory for the ffmpeg installation, e.g. from brew --prefix ffmpeg
   ffmpeg_prefix = "/usr"
-  if (ffmpeg_homebrew) {
-    ffmpeg_prefix = "${homebrew_prefix}/opt/ffmpeg"
+  if (ffmpeg_ports) {
+    ffmpeg_prefix = "${ports_prefix}"
   }
 }
 

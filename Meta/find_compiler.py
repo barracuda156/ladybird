@@ -122,28 +122,35 @@ def pick_host_compiler(platform: Platform, cc: str, cxx: str, clang_only: bool =
         gcc_candidates = []
     else:
         clang_candidates = [
-            "clang",
+            "clang-mp-19",
+            "clang-mp-20",
+            "clang-mp-21",
+            "clang-mp-22",
             "clang-19",
             "clang-20",
             "clang-21",
+            "clang-22",
+            "clang",
         ]
 
         gcc_candidates = [
-            "gcc",
+            "gcc-mp-16",
+            "gcc-mp-15",
+            "gcc-mp-14",
+            "gcc-16",
+            "gcc-15",
             "gcc-14",
+            "gcc",
         ]
 
         if platform.host_system == HostSystem.BSD:
             gcc_candidates.append("egcc")
 
     if platform.host_system == HostSystem.macOS:
-        clang_homebrew_path = Path("/opt/homebrew/opt/llvm/bin")
-        homebrew_path = Path("/opt/homebrew/bin")
+        local_path = Path("/opt/local/bin")
 
-        clang_candidates.extend([str(clang_homebrew_path.joinpath(c)) for c in clang_candidates])
-        clang_candidates.extend([str(homebrew_path.joinpath(c)) for c in clang_candidates])
-
-        gcc_candidates.extend([str(homebrew_path.joinpath(c)) for c in gcc_candidates])
+        clang_candidates.extend([str(local_path.joinpath(c)) for c in clang_candidates])
+        gcc_candidates.extend([str(local_path.joinpath(c)) for c in gcc_candidates])
     elif platform.host_system in (HostSystem.Linux, HostSystem.BSD):
         local_path = Path("/usr/local/bin")
 
@@ -161,12 +168,7 @@ def pick_host_compiler(platform: Platform, cc: str, cxx: str, clang_only: bool =
         if gcc:
             return gcc, gcc.replace("gcc", "g++")
 
-    if platform.host_system == HostSystem.macOS:
-        print(
-            f"Please ensure that Xcode {XCODE_MINIMUM_VERSION[0]}, Homebrew clang {CLANG_MINIMUM_VERSION}, or higher is installed",
-            file=sys.stderr,
-        )
-    elif platform.host_system == HostSystem.Windows:
+    if platform.host_system == HostSystem.Windows:
         print(
             f"Please ensure that clang-cl {CLANG_MINIMUM_VERSION} or higher is installed",
             file=sys.stderr,
@@ -178,7 +180,7 @@ def pick_host_compiler(platform: Platform, cc: str, cxx: str, clang_only: bool =
         )
     else:
         print(
-            f"Please ensure that clang {CLANG_MINIMUM_VERSION}, gcc {GCC_MINIMUM_VERSION}, or higher is installed",
+            f"Please ensure that clang {CLANG_MINIMUM_VERSION}, gcc {GCC_MINIMUM_VERSION} or higher is installed",
             file=sys.stderr,
         )
 

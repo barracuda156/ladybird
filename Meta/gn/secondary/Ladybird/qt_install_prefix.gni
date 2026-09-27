@@ -1,9 +1,9 @@
 declare_args() {
   # Location of Qt6 binaries/libraries/frameworks.
-  # Likely /opt/homebrew on macOS and /usr or /usr/local on Linux
+  # Likely /opt/local on macOS and /usr or /usr/local on Linux
   # FIXME: We could get these by parsing `qmake -query` or `pkg-config`
   if (host_os == "mac") {
-    qt_install_prefix = "/opt/homebrew/"
+    qt_install_prefix = "/opt/local/"
   } else {
     qt_install_prefix = "/usr/"
   }

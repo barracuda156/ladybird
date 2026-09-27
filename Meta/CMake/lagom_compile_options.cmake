@@ -28,7 +28,7 @@ if (LINUX)
 endif()
 
 if (APPLE)
-    list(APPEND CMAKE_PREFIX_PATH /opt/homebrew)
+    list(APPEND CMAKE_PREFIX_PATH /opt/local)
     if (NOT LADYBIRD_LEGACY_MACOS)
         add_cxx_link_options(LINKER:-dead_strip)
     endif()
