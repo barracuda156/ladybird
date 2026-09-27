@@ -65,9 +65,20 @@ private:
 };
 
 template<Arithmetic T>
+requires(!IsSame<T, bool>)
 ErrorOr<void> encode(Encoder& encoder, T const& value)
 {
     TRY(encoder.append(reinterpret_cast<u8 const*>(&value), sizeof(value)));
+    return {};
+}
+
+// A bool is one byte in a message, which is what the decoder reads. In memory its size depends on the ABI:
+// it is 4 bytes on 32-bit PowerPC Darwin.
+template<SameAs<bool> T>
+ErrorOr<void> encode(Encoder& encoder, T const& value)
+{
+    u8 byte = value ? 1 : 0;
+    TRY(encoder.append(&byte, sizeof(byte)));
     return {};
 }
 
@@ -147,7 +158,7 @@ template<>
 ErrorOr<void> encode(Encoder&, URL::BlobURLEntry::MediaSource const&);
 
 template<Concepts::Span T>
-requires(!IsArithmetic<typename T::ElementType>)
+requires(!IsArithmetic<typename T::ElementType> || IsSame<RemoveCV<typename T::ElementType>, bool>)
 ErrorOr<void> encode(Encoder& encoder, T const& span)
 {
     TRY(encoder.encode_size(span.size()));
@@ -159,7 +170,7 @@ ErrorOr<void> encode(Encoder& encoder, T const& span)
 }
 
 template<Concepts::Span T>
-requires(IsArithmetic<typename T::ElementType>)
+requires(IsArithmetic<typename T::ElementType> && !IsSame<RemoveCV<typename T::ElementType>, bool>)
 ErrorOr<void> encode(Encoder& encoder, T const& span)
 {
     TRY(encoder.encode_size(span.size()));

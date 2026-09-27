@@ -166,8 +166,10 @@ ErrorOr<T> decode(Decoder& decoder)
     return array;
 }
 
+// A Vector<bool> is decoded element by element: a bool is one byte in a message, whatever its size in memory
+// is, and every element has to be checked.
 template<Concepts::Vector T>
-requires(!IsArithmetic<typename T::ValueType>)
+requires(!IsArithmetic<typename T::ValueType> || IsSame<typename T::ValueType, bool>)
 ErrorOr<T> decode(Decoder& decoder)
 {
     T vector;
@@ -184,7 +186,7 @@ ErrorOr<T> decode(Decoder& decoder)
 }
 
 template<Concepts::Vector T>
-requires(IsArithmetic<typename T::ValueType>)
+requires(IsArithmetic<typename T::ValueType> && !IsSame<typename T::ValueType, bool>)
 ErrorOr<T> decode(Decoder& decoder)
 {
     T vector;
@@ -193,12 +195,6 @@ ErrorOr<T> decode(Decoder& decoder)
         return Error::from_string_literal("IPC decode: Vector size would overflow");
     TRY(vector.try_resize(size));
     TRY(decoder.decode_into({ reinterpret_cast<u8*>(vector.data()), size * sizeof(typename T::ValueType) }));
-    if constexpr (IsSame<typename T::ValueType, bool>) {
-        for (auto byte : ReadonlyBytes { reinterpret_cast<u8 const*>(vector.data()), size }) {
-            if (byte > 1)
-                return Error::from_string_literal("IPC decode: Invalid bool value");
-        }
-    }
     return vector;
 }
 
