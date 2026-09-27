@@ -6,6 +6,7 @@
  */
 
 #include <AK/ByteString.h>
+#include <AK/Checked.h>
 #include <AK/QuickSort.h>
 #include <AK/TypeCasts.h>
 #include <LibJS/Bytecode/PropertyAccess.h>
@@ -40,10 +41,20 @@ static HashMap<GC::Ptr<Object const>, HashMap<Utf16FlyString, Object::IntrinsicA
 // For small property counts (<=INLINE_NAMED_PROPERTY_CAPACITY), storage is inline in the Object.
 static constexpr u32 HEAP_STORAGE_HEADER_SIZE = sizeof(Value);
 
+// NB: A capacity that scripts can reach overflows size_t on 32-bit hosts when it is multiplied by sizeof(Value).
+static size_t value_storage_size(size_t header_size, u32 capacity)
+{
+    Checked<size_t> size = capacity;
+    size *= sizeof(Value);
+    size += header_size;
+    VERIFY(!size.has_overflow());
+    return size.value();
+}
+
 static Value* allocate_heap_named_storage(u32 capacity)
 {
     VERIFY(capacity > Object::INLINE_NAMED_PROPERTY_CAPACITY);
-    auto* raw = static_cast<u8*>(malloc(HEAP_STORAGE_HEADER_SIZE + capacity * sizeof(Value)));
+    auto* raw = static_cast<u8*>(malloc(value_storage_size(HEAP_STORAGE_HEADER_SIZE, capacity)));
     VERIFY(raw);
     *reinterpret_cast<u32*>(raw) = capacity;
     return reinterpret_cast<Value*>(raw + HEAP_STORAGE_HEADER_SIZE);
@@ -75,7 +86,7 @@ void Object::ensure_named_storage_capacity(u32 needed)
     } else {
         auto* raw = static_cast<u8*>(realloc(
             reinterpret_cast<u8*>(m_named_properties) - HEAP_STORAGE_HEADER_SIZE,
-            HEAP_STORAGE_HEADER_SIZE + new_capacity * sizeof(Value)));
+            value_storage_size(HEAP_STORAGE_HEADER_SIZE, new_capacity)));
         VERIFY(raw);
         *reinterpret_cast<u32*>(raw) = new_capacity;
         m_named_properties = reinterpret_cast<Value*>(raw + HEAP_STORAGE_HEADER_SIZE);
@@ -1707,7 +1718,8 @@ u32 Object::indexed_elements_capacity() const
 static Value* allocate_indexed_elements(u32 capacity)
 {
     // Layout: [u32 capacity] [u32 padding] [Value 0] [Value 1] ...
-    auto* raw = static_cast<u8*>(malloc(sizeof(u64) + capacity * sizeof(Value)));
+    auto* raw = static_cast<u8*>(malloc(value_storage_size(sizeof(u64), capacity)));
+    VERIFY(raw);
     *reinterpret_cast<u32*>(raw) = capacity;
     *reinterpret_cast<u32*>(raw + sizeof(u32)) = 0; // padding
     auto* elements = reinterpret_cast<Value*>(raw + sizeof(u64));

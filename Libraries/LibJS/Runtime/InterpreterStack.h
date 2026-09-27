@@ -27,8 +27,11 @@ public:
 
     [[nodiscard]] ALWAYS_INLINE ExecutionContext* allocate(u32 registers_and_locals_count, u32 constants_count, u32 arguments_count)
     {
-        auto tail_count = registers_and_locals_count + constants_count + arguments_count;
-        auto size = sizeof(ExecutionContext) + tail_count * sizeof(Value);
+        // NB: The sum is computed in 64 bits and checked first, as the size would overflow size_t on 32-bit hosts.
+        auto tail_count = static_cast<u64>(registers_and_locals_count) + constants_count + arguments_count;
+        if (tail_count > stack_size / sizeof(Value)) [[unlikely]]
+            return nullptr;
+        auto size = sizeof(ExecutionContext) + static_cast<size_t>(tail_count) * sizeof(Value);
 
         // Align up to alignof(ExecutionContext).
         size = (size + alignof(ExecutionContext) - 1) & ~(alignof(ExecutionContext) - 1);
