@@ -33,7 +33,7 @@ struct WebContentViewInitialState {
     double maximum_frames_per_second { 60.0 };
 };
 
-class WebContentView final
+class WebContentView
     : public QWidget
     , public WebView::ViewImplementation {
     Q_OBJECT

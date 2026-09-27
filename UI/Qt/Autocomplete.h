@@ -26,7 +26,7 @@ namespace Ladybird {
 class AutocompleteModel;
 class AutocompleteDelegate;
 
-class Autocomplete final : public QObject {
+class Autocomplete : public QObject {
     Q_OBJECT
 
 public:

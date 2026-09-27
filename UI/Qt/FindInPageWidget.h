@@ -20,7 +20,7 @@ namespace Ladybird {
 class Tab;
 class WebContentView;
 
-class FindInPageWidget final : public QWidget {
+class FindInPageWidget : public QWidget {
     Q_OBJECT
 
 public:

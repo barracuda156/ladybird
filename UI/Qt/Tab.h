@@ -25,7 +25,7 @@ namespace Ladybird {
 
 class BrowserWindow;
 
-class HyperlinkLabel final : public QLabel {
+class HyperlinkLabel : public QLabel {
     Q_OBJECT
 
 public:
@@ -44,7 +44,7 @@ signals:
     void mouse_entered(QEvent*);
 };
 
-class Tab final : public QWidget {
+class Tab : public QWidget {
     Q_OBJECT
 
 public:

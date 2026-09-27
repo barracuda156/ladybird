@@ -26,7 +26,7 @@ namespace Ladybird {
 class Tab;
 class TabWidget;
 
-class TabBar final : public QTabBar {
+class TabBar : public QTabBar {
     Q_OBJECT
 
 public:
@@ -45,7 +45,7 @@ private:
     int m_x_position_in_selected_tab_while_dragging { 0 };
 };
 
-class TabWidget final : public QWidget {
+class TabWidget : public QWidget {
     Q_OBJECT
 
 public:
@@ -91,7 +91,7 @@ private:
     QWidget* m_tab_bar_row { nullptr };
 };
 
-class TabBarButton final : public QPushButton {
+class TabBarButton : public QPushButton {
     Q_OBJECT
 
 public:

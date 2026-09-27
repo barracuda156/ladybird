@@ -11,7 +11,7 @@
 
 namespace Ladybird {
 
-class EventLoopImplementationQtEventTarget final : public QObject {
+class EventLoopImplementationQtEventTarget : public QObject {
     Q_OBJECT
 
 public:

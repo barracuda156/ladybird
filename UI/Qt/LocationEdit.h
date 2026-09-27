@@ -19,7 +19,7 @@ namespace Ladybird {
 
 class Autocomplete;
 
-class LocationEdit final
+class LocationEdit
     : public QLineEdit
     , public WebView::SettingsObserver {
     Q_OBJECT

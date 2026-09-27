@@ -14,7 +14,7 @@
 
 namespace Ladybird {
 
-class BookmarksBar final : public QToolBar {
+class BookmarksBar : public QToolBar {
     Q_OBJECT
 
 public:
