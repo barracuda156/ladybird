@@ -12,6 +12,9 @@
 #include <time.h>
 #if defined(AK_OS_WINDOWS)
 #    include <AK/Windows.h>
+#else
+#    include <signal.h>
+#    include <sys/socket.h>
 #endif
 
 namespace Main {
@@ -36,6 +39,10 @@ int main(int argc, char** argv)
 
 #if defined(AK_OS_WINDOWS)
     windows_init();
+#elif !defined(MSG_NOSIGNAL)
+    // Without MSG_NOSIGNAL a write to a socket that the peer has closed raises SIGPIPE, which ends the
+    // process. Ignore the signal, so that the write fails with EPIPE as it does everywhere else.
+    signal(SIGPIPE, SIG_IGN);
 #endif
 
     Vector<StringView> arguments;
