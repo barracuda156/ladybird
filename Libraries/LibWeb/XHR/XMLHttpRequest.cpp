@@ -11,6 +11,7 @@
 #include <AK/ByteBuffer.h>
 #include <AK/Debug.h>
 #include <AK/GenericLexer.h>
+#include <AK/NumericLimits.h>
 #include <AK/QuickSort.h>
 #include <LibHTTP/Method.h>
 #include <LibJS/Runtime/ArrayBuffer.h>
@@ -812,8 +813,10 @@ WebIDL::ExceptionOr<void> XMLHttpRequest::send(Optional<DocumentOrXMLHttpRequest
                 length = 0;
 
             // Pre-allocate received bytes buffer if Content-Length is known.
-            if (length.get<u64>() > 0)
-                m_received_bytes.ensure_capacity(length.get<u64>());
+            // NB: The length is whatever the server claims. It may not fit into size_t, and failing to reserve that
+            //     much memory is not an error: the buffer grows as the bytes arrive.
+            if (auto content_length = length.get<u64>(); content_length > 0 && content_length <= NumericLimits<size_t>::max())
+                (void)m_received_bytes.try_ensure_capacity(static_cast<size_t>(content_length));
 
             // 10. Let processBodyChunk given bytes be these steps:
             auto process_body_chunks = GC::create_function(heap(), [this, length](ByteBuffer byte_buffer) {
