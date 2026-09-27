@@ -99,7 +99,13 @@ public:
     }
 };
 
-Application::Application() = default;
+// The browser can run from an application bundle; the helper processes and resources it uses are
+// those of the installed Lagom package, found from where the engine's binaries are.
+Application::Application()
+    : WebView::Application(ByteString { LADYBIRD_ENGINE_BINARY_DIRECTORY })
+{
+}
+
 Application::~Application() = default;
 
 void Application::create_platform_arguments(Core::ArgsParser& args_parser)

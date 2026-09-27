@@ -58,7 +58,6 @@ add_executable(ladybird
     ${MOC_SOURCES}
     ${RESOURCE_SOURCES}
 )
-set_target_properties(ladybird PROPERTIES OUTPUT_NAME ladybird-qt)
 
 # The sources include each other as <UI/Qt/...>. The source root cannot be the include directory for
 # that: its AK/ and Libraries/ would shadow the installed headers, which are the ones the libraries
@@ -82,6 +81,43 @@ target_link_libraries(ladybird PRIVATE
     Lagom::JS Lagom::Main Lagom::Web Lagom::WebView Lagom::Requests Lagom::URL
     OpenSSL::Crypto OpenSSL::SSL)
 
-# The helper processes and resources come from the package's install prefix, where LibWebView looks
-# for them relative to this executable (libexec/ and share/Lagom/).
-install(TARGETS ladybird RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+# The helper processes and resources are those of the installed Lagom package, in libexec/ and
+# share/Lagom/ of its prefix. LibWebView finds them from the directory of the engine's binaries,
+# which the browser passes on, as it may itself run from an application bundle.
+set(LADYBIRD_ENGINE_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "Install prefix of the Lagom package whose helper processes and resources the browser uses")
+target_compile_definitions(ladybird PRIVATE LADYBIRD_ENGINE_BINARY_DIRECTORY="${LADYBIRD_ENGINE_PREFIX}/${CMAKE_INSTALL_BINDIR}")
+
+if (APPLE)
+    # An application bundle, as upstream builds it: Ladybird.app, with the executable Ladybird that
+    # Info.plist names.
+    set_target_properties(ladybird PROPERTIES
+        OUTPUT_NAME Ladybird
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../Info.plist"
+    )
+
+    # Upstream makes the icon with iconutil, which Mac OS X has from 10.7 on.
+    find_program(MAKEICNS_EXECUTABLE makeicns)
+    if (MAKEICNS_EXECUTABLE)
+        set(iconset "${CMAKE_CURRENT_SOURCE_DIR}/../Icons/macos/app_icon.iconset")
+        add_custom_command(TARGET ladybird POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:ladybird>/Resources"
+            COMMAND "${MAKEICNS_EXECUTABLE}"
+                -512 "${iconset}/icon_512x512.png"
+                -256 "${iconset}/icon_256x256.png"
+                -128 "${iconset}/icon_128x128.png"
+                -32 "${iconset}/icon_32x32.png"
+                -16 "${iconset}/icon_16x16.png"
+                -out "$<TARGET_BUNDLE_CONTENT_DIR:ladybird>/Resources/app_icon.icns"
+            VERBATIM
+        )
+    else()
+        message(WARNING "makeicns not found: Ladybird.app will have no icon")
+    endif()
+
+    set(LADYBIRD_APPLICATIONS_DIR "Applications" CACHE PATH "Where Ladybird.app is installed, relative to the prefix or absolute")
+    install(TARGETS ladybird BUNDLE DESTINATION "${LADYBIRD_APPLICATIONS_DIR}")
+else()
+    set_target_properties(ladybird PROPERTIES OUTPUT_NAME ladybird-qt)
+    install(TARGETS ladybird RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
