@@ -375,9 +375,12 @@ private:
     bool m_deferred_clear { false };
     mutable Atomic<u16> m_call_nesting_level { 0 };
 
-    static constexpr size_t inline_alignment = max(alignof(CallableWrapperBase), alignof(CallableWrapperBase*));
+    // NB: A callable is stored inline wherever it would be on a 64-bit host. Code that scans the captures of one
+    //     closure for GC pointers only sees the captures of a Function nested in it when they are stored inline, and
+    //     a JS::Value or a double in a capture list is as large on a 32-bit host as on a 64-bit one.
+    static constexpr size_t inline_alignment = max(max(alignof(CallableWrapperBase), alignof(CallableWrapperBase*)), static_cast<size_t>(8));
     // Empirically determined to fit most lambdas and functions.
-    static constexpr size_t inline_capacity = 4 * sizeof(void*);
+    static constexpr size_t inline_capacity = max(4 * sizeof(void*), static_cast<size_t>(32));
 
     alignas(inline_alignment) u8 m_storage[inline_capacity];
 };
