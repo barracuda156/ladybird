@@ -29,7 +29,9 @@ endif()
 
 if (APPLE)
     list(APPEND CMAKE_PREFIX_PATH /opt/homebrew)
-    add_cxx_link_options(LINKER:-dead_strip)
+    if (NOT LADYBIRD_LEGACY_MACOS)
+        add_cxx_link_options(LINKER:-dead_strip)
+    endif()
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
