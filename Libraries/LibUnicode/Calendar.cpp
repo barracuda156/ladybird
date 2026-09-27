@@ -5,7 +5,47 @@
  */
 
 #include <LibUnicode/Calendar.h>
-#include <LibUnicode/RustFFI.h>
+
+struct FfiISODate {
+    i32 year;
+    u8 month;
+    u8 day;
+};
+
+struct FfiOptionalISODate {
+    FfiISODate iso_date;
+    bool has_value;
+};
+
+struct FfiCalendarDate {
+    i32 year;
+    u8 month;
+    u8 month_code[5];
+    u8 month_code_length;
+    u8 day;
+    u8 day_of_week;
+    u16 day_of_year;
+    u8 days_in_week;
+    u8 days_in_month;
+    u16 days_in_year;
+    u8 months_in_year;
+    bool in_leap_year;
+};
+
+extern "C" {
+
+FfiCalendarDate icu_iso_date_to_calendar_date(u8 const* calendar, size_t calendar_length, i32 iso_year, u8 iso_month, u8 iso_day);
+FfiOptionalISODate icu_calendar_date_to_iso_date(u8 const* calendar, size_t calendar_length, i32 arithmetic_year, u8 ordinal_month, u8 day);
+
+FfiOptionalISODate icu_iso_year_and_month_code_to_iso_date(u8 const* calendar, size_t calendar_length, i32 iso_year, u8 const* month_code, size_t month_code_length, u8 day);
+FfiOptionalISODate icu_calendar_year_and_month_code_to_iso_date(u8 const* calendar, size_t calendar_length, i32 arithmetic_year, u8 const* month_code, size_t month_code_length, u8 day);
+
+u8 icu_calendar_months_in_year(u8 const* calendar, size_t calendar_length, i32 arithmetic_year);
+u8 icu_calendar_days_in_month(u8 const* calendar, size_t calendar_length, i32 arithmetic_year, u8 ordinal_month);
+u8 icu_calendar_max_days_in_month_code(u8 const* calendar, size_t calendar_length, u8 const* month_code, size_t month_code_length);
+bool icu_year_contains_month_code(u8 const* calendar, size_t calendar_length, i32 arithmetic_year, u8 const* month_code, size_t month_code_length);
+
+} // extern "C"
 
 namespace Unicode {
 
@@ -86,7 +126,7 @@ String create_month_code(u8 month_number, bool is_leap_month)
 
 CalendarDate iso_date_to_calendar_date(String const& calendar, ISODate iso_date)
 {
-    auto result = FFI::icu_iso_date_to_calendar_date(calendar.bytes().data(), calendar.bytes().size(), iso_date.year, iso_date.month, iso_date.day);
+    auto result = icu_iso_date_to_calendar_date(calendar.bytes().data(), calendar.bytes().size(), iso_date.year, iso_date.month, iso_date.day);
 
     return CalendarDate {
         .era = {},
@@ -108,7 +148,7 @@ CalendarDate iso_date_to_calendar_date(String const& calendar, ISODate iso_date)
 
 Optional<ISODate> calendar_date_to_iso_date(String const& calendar, i32 year, u8 month, u8 day)
 {
-    auto result = FFI::icu_calendar_date_to_iso_date(calendar.bytes().data(), calendar.bytes().size(), year, month, day);
+    auto result = icu_calendar_date_to_iso_date(calendar.bytes().data(), calendar.bytes().size(), year, month, day);
     if (!result.has_value)
         return {};
 
@@ -117,7 +157,7 @@ Optional<ISODate> calendar_date_to_iso_date(String const& calendar, i32 year, u8
 
 Optional<ISODate> iso_year_and_month_code_to_iso_date(String const& calendar, i32 year, StringView month_code, u8 day)
 {
-    auto result = FFI::icu_iso_year_and_month_code_to_iso_date(calendar.bytes().data(), calendar.bytes().size(), year, month_code.bytes().data(), month_code.length(), day);
+    auto result = icu_iso_year_and_month_code_to_iso_date(calendar.bytes().data(), calendar.bytes().size(), year, month_code.bytes().data(), month_code.length(), day);
     if (!result.has_value)
         return {};
 
@@ -126,7 +166,7 @@ Optional<ISODate> iso_year_and_month_code_to_iso_date(String const& calendar, i3
 
 Optional<ISODate> calendar_year_and_month_code_to_iso_date(String const& calendar, i32 arithmetic_year, StringView month_code, u8 day)
 {
-    auto result = FFI::icu_calendar_year_and_month_code_to_iso_date(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year, month_code.bytes().data(), month_code.length(), day);
+    auto result = icu_calendar_year_and_month_code_to_iso_date(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year, month_code.bytes().data(), month_code.length(), day);
     if (!result.has_value)
         return {};
 
@@ -135,22 +175,22 @@ Optional<ISODate> calendar_year_and_month_code_to_iso_date(String const& calenda
 
 u8 calendar_months_in_year(String const& calendar, i32 arithmetic_year)
 {
-    return FFI::icu_calendar_months_in_year(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year);
+    return icu_calendar_months_in_year(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year);
 }
 
 u8 calendar_days_in_month(String const& calendar, i32 arithmetic_year, u8 ordinal_month)
 {
-    return FFI::icu_calendar_days_in_month(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year, ordinal_month);
+    return icu_calendar_days_in_month(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year, ordinal_month);
 }
 
 u8 calendar_max_days_in_month_code(String const& calendar, StringView month_code)
 {
-    return FFI::icu_calendar_max_days_in_month_code(calendar.bytes().data(), calendar.bytes().size(), month_code.bytes().data(), month_code.length());
+    return icu_calendar_max_days_in_month_code(calendar.bytes().data(), calendar.bytes().size(), month_code.bytes().data(), month_code.length());
 }
 
 bool calendar_year_contains_month_code(String const& calendar, i32 arithmetic_year, StringView month_code)
 {
-    return FFI::icu_year_contains_month_code(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year, month_code.bytes().data(), month_code.length());
+    return icu_year_contains_month_code(calendar.bytes().data(), calendar.bytes().size(), arithmetic_year, month_code.bytes().data(), month_code.length());
 }
 
 }

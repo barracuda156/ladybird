@@ -383,7 +383,6 @@ name = "libunicode_rust"
 version = "0.1.0"
 dependencies = [
  "calendrical_calculations",
- "cbindgen",
  "icu_calendar",
 ]
 
