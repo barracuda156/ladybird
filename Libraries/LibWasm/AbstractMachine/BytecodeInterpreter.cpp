@@ -1949,7 +1949,12 @@ HANDLE_INSTRUCTION(synthetic_br_if_nostack)
     auto current = configuration.value_stack().size();
     if (current != expected) [[unlikely]] {
         // This branch is definitely taken, but we have to tailcall a different function so we don't pollute this one with vector reallocation nonsense.
+#ifdef AK_COMPILER_CLANG
         return [](HANDLER_PARAMS(DECOMPOSE_PARAMS)) NEVER_INLINE static {
+#else
+        // GCC takes a GNU attribute of a lambda only after its specifiers.
+        return [](HANDLER_PARAMS(DECOMPOSE_PARAMS)) static NEVER_INLINE {
+#endif
             short_ip.current_ip_value = interpreter.branch_to_label<true>(configuration, instruction->arguments().unsafe_get<Instruction::BranchArgs>().label, short_ip.current_ip_value).value();
             TAILCALL return continue_(HANDLER_PARAMS(DECOMPOSE_PARAMS_NAME_ONLY));
         }(HANDLER_PARAMS(DECOMPOSE_PARAMS_NAME_ONLY));
