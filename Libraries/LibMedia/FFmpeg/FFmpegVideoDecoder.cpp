@@ -4,15 +4,81 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Checked.h>
+#include <AK/ScopeGuard.h>
 #include <LibCore/System.h>
+#include <LibGfx/Bitmap.h>
+#include <LibGfx/ColorSpace.h>
 #include <LibGfx/ImmutableBitmap.h>
+#include <LibGfx/SkiaBackendContext.h>
 #include <LibGfx/YUVData.h>
 #include <LibMedia/VideoFrame.h>
 
 #include "FFmpegHelpers.h"
 #include "FFmpegVideoDecoder.h"
 
+extern "C" {
+#include <libavutil/cpu.h>
+#include <libavutil/mem.h>
+#include <libswscale/swscale.h>
+}
+
 namespace Media::FFmpeg {
+
+// A YUV-backed bitmap becomes an image on the GPU when it is painted. Without a GPU context nothing can paint
+// it, so the frames have to be converted to RGB while they are decoded.
+static bool can_paint_yuv_frames()
+{
+    auto context = Gfx::SkiaBackendContext::the();
+    return context && context->sk_context() != nullptr;
+}
+
+static int scaling_matrix_for(MatrixCoefficients matrix_coefficients)
+{
+    switch (matrix_coefficients) {
+    case MatrixCoefficients::FCC:
+        return SWS_CS_FCC;
+    case MatrixCoefficients::BT470BG:
+    case MatrixCoefficients::BT601:
+        return SWS_CS_ITU601;
+    case MatrixCoefficients::SMPTE240:
+        return SWS_CS_SMPTE240M;
+    case MatrixCoefficients::BT2020NonConstantLuminance:
+    case MatrixCoefficients::BT2020ConstantLuminance:
+        return SWS_CS_BT2020;
+    default:
+        return SWS_CS_ITU709;
+    }
+}
+
+// With identity matrix coefficients the planes hold G, B and R. The full range formats differ from the others
+// only in the range, and the scaler is told the range separately.
+static Optional<AVPixelFormat> scaling_source_format(AVPixelFormat format, bool is_rgb)
+{
+    switch (format) {
+    case AV_PIX_FMT_YUV444P:
+    case AV_PIX_FMT_YUVJ444P:
+        return is_rgb ? AV_PIX_FMT_GBRP : AV_PIX_FMT_YUV444P;
+    case AV_PIX_FMT_YUV444P10:
+        return is_rgb ? AV_PIX_FMT_GBRP10 : AV_PIX_FMT_YUV444P10;
+    case AV_PIX_FMT_YUV444P12:
+        return is_rgb ? AV_PIX_FMT_GBRP12 : AV_PIX_FMT_YUV444P12;
+    default:
+        break;
+    }
+
+    if (is_rgb)
+        return {};
+
+    switch (format) {
+    case AV_PIX_FMT_YUVJ420P:
+        return AV_PIX_FMT_YUV420P;
+    case AV_PIX_FMT_YUVJ422P:
+        return AV_PIX_FMT_YUV422P;
+    default:
+        return format;
+    }
+}
 
 static AVPixelFormat negotiate_output_format(AVCodecContext*, AVPixelFormat const* formats)
 {
@@ -101,6 +167,7 @@ FFmpegVideoDecoder::FFmpegVideoDecoder(AVCodecContext* codec_context, AVPacket* 
 
 FFmpegVideoDecoder::~FFmpegVideoDecoder()
 {
+    sws_freeContext(m_scaling_context);
     av_packet_free(&m_packet);
     av_frame_free(&m_frame);
     avcodec_free_context(&m_codec_context);
@@ -142,6 +209,99 @@ void FFmpegVideoDecoder::signal_end_of_stream()
 
     auto result = avcodec_send_packet(m_codec_context, m_packet);
     VERIFY(result == 0 || result == AVERROR_EOF);
+}
+
+DecoderErrorOr<NonnullRefPtr<Gfx::ImmutableBitmap>> FFmpegVideoDecoder::convert_frame_to_rgb(CodingIndependentCodePoints const& cicp)
+{
+    auto is_rgb = cicp.matrix_coefficients() == MatrixCoefficients::Identity;
+    auto source_format = scaling_source_format(static_cast<AVPixelFormat>(m_frame->format), is_rgb);
+    if (!source_format.has_value())
+        return DecoderError::with_description(DecoderErrorCategory::NotImplemented, "Subsampled RGB is not supported"sv);
+
+    ScalingParameters parameters {
+        .width = m_frame->width,
+        .height = m_frame->height,
+        .source_format = static_cast<int>(*source_format),
+        .matrix = is_rgb ? 0 : scaling_matrix_for(cicp.matrix_coefficients()),
+        .full_range = is_rgb || cicp.video_full_range_flag() == VideoFullRangeFlag::Full,
+    };
+
+    if (!m_scaling_context || parameters != m_scaling_parameters) {
+        // The scaler has a fast path for 8-bit 4:2:0 and 4:2:2 that writes pairs of pixels, and leaves the last
+        // column of a frame with an odd width unwritten. SWS_ACCURATE_RND keeps such frames off that path.
+        int flags = SWS_BILINEAR;
+        if (parameters.width % 2 != 0)
+            flags |= SWS_ACCURATE_RND;
+
+        sws_freeContext(m_scaling_context);
+        m_scaling_context = sws_getContext(
+            parameters.width, parameters.height, *source_format,
+            parameters.width, parameters.height, AV_PIX_FMT_BGRA,
+            flags, nullptr, nullptr, nullptr);
+        if (!m_scaling_context)
+            return DecoderError::with_description(DecoderErrorCategory::Unknown, "Failed to set up the conversion of frames to RGB"sv);
+
+        if (!is_rgb) {
+            auto result = sws_setColorspaceDetails(
+                m_scaling_context,
+                sws_getCoefficients(parameters.matrix), parameters.full_range ? 1 : 0,
+                sws_getCoefficients(SWS_CS_DEFAULT), 1,
+                0, 1 << 16, 1 << 16);
+            if (result < 0) {
+                sws_freeContext(m_scaling_context);
+                m_scaling_context = nullptr;
+                return DecoderError::with_description(DecoderErrorCategory::Unknown, "Failed to set the color space for the conversion of frames to RGB"sv);
+            }
+        }
+
+        m_scaling_parameters = parameters;
+    }
+
+    // The vector code of the scaler stores whole vectors at aligned addresses, so every row starts at one, and
+    // there is room behind the last row.
+    auto alignment = max(av_cpu_max_align(), static_cast<size_t>(16));
+    Checked<size_t> unaligned_pitch = static_cast<size_t>(parameters.width);
+    unaligned_pitch *= 4;
+    unaligned_pitch += alignment - 1;
+    if (unaligned_pitch.has_overflow())
+        return DecoderError::with_description(DecoderErrorCategory::Memory, "The frame is too large to convert to RGB"sv);
+    auto pitch = unaligned_pitch.value() - (unaligned_pitch.value() % alignment);
+
+    Checked<size_t> data_size = pitch;
+    data_size *= static_cast<size_t>(parameters.height);
+    data_size += alignment;
+    if (data_size.has_overflow() || pitch > static_cast<size_t>(NumericLimits<int>::max()))
+        return DecoderError::with_description(DecoderErrorCategory::Memory, "The frame is too large to convert to RGB"sv);
+
+    auto* data = static_cast<u8*>(av_malloc(data_size.value()));
+    if (!data)
+        return DecoderError::with_description(DecoderErrorCategory::Memory, "Failed to allocate the pixels of an RGB frame"sv);
+    ArmedScopeGuard free_data {
+        [&] {
+            av_free(data);
+        }
+    };
+
+    u8* const destination[4] = { data, nullptr, nullptr, nullptr };
+    int const destination_line_sizes[4] = { static_cast<int>(pitch), 0, 0, 0 };
+    auto converted_rows = sws_scale(m_scaling_context, m_frame->data, m_frame->linesize, 0, parameters.height, destination, destination_line_sizes);
+    if (converted_rows != parameters.height)
+        return DecoderError::with_description(DecoderErrorCategory::Unknown, "Failed to convert a frame to RGB"sv);
+
+    // Gfx::BitmapFormat names the bytes in memory order, like AV_PIX_FMT_BGRA does.
+    auto bitmap = DECODER_TRY_ALLOC(Gfx::Bitmap::create_wrapper(
+        Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied,
+        { parameters.width, parameters.height }, pitch, data,
+        [data] {
+            av_free(data);
+        }));
+    free_data.disarm();
+
+    // The pixels are full range RGB now, with the primaries and the transfer characteristics of the video.
+    auto color_space = Gfx::ColorSpace::from_cicp({ cicp.color_primaries(), cicp.transfer_characteristics(), MatrixCoefficients::Identity, VideoFullRangeFlag::Full });
+    if (color_space.is_error())
+        return Gfx::ImmutableBitmap::create(move(bitmap));
+    return Gfx::ImmutableBitmap::create(move(bitmap), color_space.release_value());
 }
 
 DecoderErrorOr<NonnullOwnPtr<VideoFrame>> FFmpegVideoDecoder::get_decoded_frame(CodingIndependentCodePoints const& container_cicp)
@@ -233,6 +393,11 @@ DecoderErrorOr<NonnullOwnPtr<VideoFrame>> FFmpegVideoDecoder::get_decoded_frame(
 
         auto timestamp = AK::Duration::from_microseconds(m_frame->pts);
         auto duration = AK::Duration::from_microseconds(m_frame->duration);
+
+        if (!can_paint_yuv_frames()) {
+            auto bitmap = TRY(convert_frame_to_rgb(cicp));
+            return DECODER_TRY_ALLOC(try_make<VideoFrame>(timestamp, duration, size, bit_depth, cicp, move(bitmap)));
+        }
 
         auto yuv_data = DECODER_TRY_ALLOC(Gfx::YUVData::create(gfx_size, bit_depth, subsampling, cicp));
 

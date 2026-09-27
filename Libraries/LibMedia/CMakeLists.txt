@@ -32,7 +32,7 @@ target_sources(LibMedia PRIVATE
 )
 
 if (NOT ANDROID)
-    target_link_libraries(LibMedia PRIVATE PkgConfig::AVCODEC PkgConfig::AVFORMAT PkgConfig::AVUTIL PkgConfig::LIBSWRESAMPLE)
+    target_link_libraries(LibMedia PRIVATE PkgConfig::AVCODEC PkgConfig::AVFORMAT PkgConfig::AVUTIL PkgConfig::LIBSWRESAMPLE PkgConfig::LIBSWSCALE)
 else()
     target_include_directories(LibMedia PRIVATE ${FFMPEG_INCLUDE_DIRS})
     target_link_directories(LibMedia PRIVATE ${FFMPEG_LIBRARY_DIRS})

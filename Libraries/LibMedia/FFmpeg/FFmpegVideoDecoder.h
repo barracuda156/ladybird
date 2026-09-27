@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <AK/NonnullRefPtr.h>
+#include <LibGfx/Forward.h>
 #include <LibMedia/CodecID.h>
 #include <LibMedia/Export.h>
 #include <LibMedia/VideoDecoder.h>
@@ -27,9 +29,24 @@ public:
     virtual void flush() override;
 
 private:
+    struct ScalingParameters {
+        int width { 0 };
+        int height { 0 };
+        int source_format { -1 };
+        int matrix { 0 };
+        bool full_range { false };
+
+        bool operator==(ScalingParameters const&) const = default;
+    };
+
+    DecoderErrorOr<NonnullRefPtr<Gfx::ImmutableBitmap>> convert_frame_to_rgb(CodingIndependentCodePoints const&);
+
     AVCodecContext* m_codec_context;
     AVPacket* m_packet;
     AVFrame* m_frame;
+
+    SwsContext* m_scaling_context { nullptr };
+    ScalingParameters m_scaling_parameters;
 };
 
 }

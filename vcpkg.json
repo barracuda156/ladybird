@@ -45,6 +45,7 @@
         "avcodec",
         "avformat",
         "swresample",
+        "swscale",
         "dav1d",
         "openh264",
         "opus",
