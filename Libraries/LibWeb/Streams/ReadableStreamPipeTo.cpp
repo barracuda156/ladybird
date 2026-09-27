@@ -264,16 +264,20 @@ void ReadableStreamPipeTo::write_unwritten_chunks()
 
 void ReadableStreamPipeTo::wait_for_pending_writes_to_complete(Function<void()> on_complete)
 {
+    // NB: The GC only scans the captures of the closure it owns. A Function captured by another closure hides its own
+    //     captures from that scan whenever it stores them out of line, which depends on the pointer size of the host.
+    auto on_complete_function = GC::Function<void()>::create(heap(), move(on_complete));
+
     auto last_write_promise = m_last_write_promise;
     m_last_write_promise = {};
     if (!last_write_promise) {
-        HTML::queue_a_microtask(nullptr, GC::create_function(heap(), [on_complete = move(on_complete)]() {
-            on_complete();
+        HTML::queue_a_microtask(nullptr, GC::create_function(heap(), [on_complete_function]() {
+            on_complete_function->function()();
         }));
         return;
     }
-    auto run_complete_steps = GC::create_function(heap(), [on_complete = move(on_complete)](JS::Value) -> WebIDL::ExceptionOr<JS::Value> {
-        on_complete();
+    auto run_complete_steps = GC::create_function(heap(), [on_complete_function](JS::Value) -> WebIDL::ExceptionOr<JS::Value> {
+        on_complete_function->function()();
         return JS::js_undefined();
     });
     WebIDL::react_to_promise(*last_write_promise, run_complete_steps, run_complete_steps);
