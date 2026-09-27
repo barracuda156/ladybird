@@ -307,7 +307,7 @@ static NonnullRefPtr<PromiseType> display_add_or_edit_bookmark_dialog(
     if (current_title.has_value())
         title_edit->setText(qstring_from_ak_string(*current_title));
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, dialog);
     Ladybird::connect(buttons, SIGNAL(accepted()), dialog, [dialog] { dialog->accept(); });
     Ladybird::connect(buttons, SIGNAL(rejected()), dialog, [dialog] { dialog->reject(); });
 
@@ -378,7 +378,7 @@ static NonnullRefPtr<PromiseType> display_add_or_edit_bookmark_folder_dialog(
     if (current_title.has_value())
         title_edit->setText(qstring_from_ak_string(*current_title));
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, dialog);
     Ladybird::connect(buttons, SIGNAL(accepted()), dialog, [dialog] { dialog->accept(); });
     Ladybird::connect(buttons, SIGNAL(rejected()), dialog, [dialog] { dialog->reject(); });
 

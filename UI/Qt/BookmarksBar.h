@@ -10,6 +10,7 @@
 #include <AK/String.h>
 #include <LibWebView/Forward.h>
 
+#include <QMenu>
 #include <QToolBar>
 
 namespace Ladybird {
