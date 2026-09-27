@@ -195,22 +195,23 @@ void Shape::visit_edges(Cell::Visitor& visitor)
 
     visitor.visit(m_prototype_chain_validity);
 
-    // Only dictionary shapes actually need us to mark the keys in m_property_table.
+    // Dictionary shapes and root shapes (no m_previous) need us to mark the keys in
+    // m_property_table.
     //
-    // For non-dictionary shapes, m_property_table is a lazily-built cache of the
-    // transition chain: every key it contains was originally inserted into some
-    // ancestor's m_property_key, and that ancestor is kept alive by m_previous
-    // (which we already visit above). So those keys are guaranteed to be marked
-    // transitively via the chain, and re-marking them here is pure overhead.
+    // For non-dictionary shapes that have a transition chain, m_property_table is a
+    // lazily-built cache of that chain: every key it contains was originally inserted
+    // into some ancestor's m_property_key, and that ancestor is kept alive by
+    // m_previous (which we already visit above). So those keys are guaranteed to be
+    // marked transitively via the chain, and re-marking them here is pure overhead.
     //
-    // The exception used to be the handful of intrinsic shapes populated via
-    // add_property_without_transition() in Intrinsics.cpp (iterator-result,
-    // function, arguments, regexp-exec-array, ...). Those shapes are not
-    // dictionaries and have no m_previous to reach their property keys through.
-    // However, every key they hold is a vm.names.* string or a well-known
-    // symbol, both of which are strongly rooted by the VM for its entire
-    // lifetime, so skipping them here is safe.
-    if (m_dictionary && m_property_table) {
+    // Root shapes have no chain to reach their keys through. Those are the intrinsic
+    // shapes populated via add_property_without_transition() in Intrinsics.cpp (their
+    // keys are vm.names.* strings and well-known symbols, rooted by the VM anyway) and
+    // the shapes made by clone_for_prototype(), whose table copy is the only owner of
+    // the keys once the object's old transition chain has been collected. A Symbol key
+    // on an object that later becomes a prototype would otherwise be swept while this
+    // table still refers to it.
+    if (m_property_table && (m_dictionary || !m_previous)) {
         for (auto& it : *m_property_table)
             it.key.visit_edges(visitor);
     }
