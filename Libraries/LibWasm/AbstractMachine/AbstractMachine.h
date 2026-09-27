@@ -433,7 +433,7 @@ public:
     {
         if (size_to_grow == 0)
             return true;
-        size_t new_size = m_elements.size() + size_to_grow;
+        u64 new_size = static_cast<u64>(m_elements.size()) + size_to_grow;
         if (auto max = m_type.limits().max(); max.has_value()) {
             if (max.value() < new_size)
                 return false;
@@ -442,7 +442,7 @@ public:
             return false;
         }
         auto previous_size = m_elements.size();
-        if (m_elements.try_resize(new_size).is_error())
+        if (m_elements.try_resize(static_cast<size_t>(new_size)).is_error())
             return false;
         for (size_t i = previous_size; i < m_elements.size(); ++i)
             m_elements[i] = fill_value;
@@ -484,24 +484,27 @@ public:
         Yes,
     };
 
-    bool grow(size_t size_to_grow, GrowType grow_type = GrowType::Yes, InhibitGrowCallback inhibit_callback = InhibitGrowCallback::No)
+    bool grow(u64 size_to_grow, GrowType grow_type = GrowType::Yes, InhibitGrowCallback inhibit_callback = InhibitGrowCallback::No)
     {
         if (size_to_grow == 0)
             return true;
-        u64 new_size = m_data.size() + size_to_grow;
         // Can't grow past 2^16 pages.
-        if (new_size >= Constants::page_size * 65536)
+        u64 const size_limit = Constants::page_size * 65536;
+        if (size_to_grow >= size_limit)
+            return false;
+        u64 new_size = m_data.size() + size_to_grow;
+        if (new_size >= size_limit)
             return false;
         if (auto max = m_type.limits().max(); max.has_value()) {
             if (max.value() * Constants::page_size < new_size)
                 return false;
         }
         auto previous_size = m_size;
-        if (m_data.try_resize(new_size).is_error())
+        if (m_data.try_resize(static_cast<size_t>(new_size)).is_error())
             return false;
-        m_size = new_size;
+        m_size = static_cast<size_t>(new_size);
         // The spec requires that we zero out everything on grow
-        __builtin_memset(m_data.offset_pointer(previous_size), 0, size_to_grow);
+        __builtin_memset(m_data.offset_pointer(previous_size), 0, static_cast<size_t>(size_to_grow));
 
         // NOTE: This exists because wasm-js-api wants to execute code after a successful grow,
         //       See [this issue](https://github.com/WebAssembly/spec/issues/1635) for more details.
