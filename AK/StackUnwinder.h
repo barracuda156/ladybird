@@ -36,6 +36,9 @@ void unwind_stack_from_frame_pointer(FlatPtr frame_pointer, CallableAs<Optional<
     static constexpr ptrdiff_t FRAME_POINTER_RETURN_ADDRESS_OFFSET = -8;
     static constexpr ptrdiff_t FRAME_POINTER_PREVIOUS_FRAME_POINTER_OFFSET = -16;
 #else
+    // NB: The offsets have to be declared for the code below to compile, although it is never reached.
+    static constexpr ptrdiff_t FRAME_POINTER_RETURN_ADDRESS_OFFSET = 0;
+    static constexpr ptrdiff_t FRAME_POINTER_PREVIOUS_FRAME_POINTER_OFFSET = 0;
     return;
 #endif
 
