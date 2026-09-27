@@ -37,9 +37,10 @@ namespace Unicode {
 class LocaleData {
 public:
     static Optional<LocaleData&> for_locale(StringView locale);
-    static String canonicalize(StringView locale);
 
     ALWAYS_INLINE icu::Locale& locale() { return m_locale; }
+
+    String to_string();
 
     icu::LocaleDisplayNames& standard_display_names();
     icu::LocaleDisplayNames& dialect_display_names();
@@ -57,7 +58,7 @@ private:
     explicit LocaleData(icu::Locale locale);
 
     icu::Locale m_locale;
-    Optional<String> m_canonical_locale_string;
+    Optional<String> m_locale_string;
 
     OwnPtr<icu::LocaleDisplayNames> m_standard_display_names;
     OwnPtr<icu::LocaleDisplayNames> m_dialect_display_names;

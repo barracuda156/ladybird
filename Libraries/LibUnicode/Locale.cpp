@@ -478,7 +478,15 @@ Optional<LocaleID> parse_unicode_locale_id(StringView locale)
 
 String canonicalize_unicode_locale_id(StringView locale)
 {
-    return LocaleData::canonicalize(locale);
+    UErrorCode status = U_ZERO_ERROR;
+
+    auto locale_data = LocaleData::for_locale(locale);
+    VERIFY(locale_data.has_value());
+
+    locale_data->locale().canonicalize(status);
+    verify_icu_success(status);
+
+    return locale_data->to_string();
 }
 
 String canonicalize_unicode_extension_values(StringView key, StringView value)
@@ -489,6 +497,9 @@ String canonicalize_unicode_extension_values(StringView key, StringView value)
     builder.setUnicodeLocaleKeyword(icu_string_piece(key), icu_string_piece(value));
 
     auto locale = builder.build(status);
+    verify_icu_success(status);
+
+    locale.canonicalize(status);
     verify_icu_success(status);
 
     auto result = locale.getUnicodeKeywordValue<StringBuilder>(icu_string_piece(key), status);
