@@ -119,6 +119,10 @@ void AsmInterpreter::run(Interpreter& interp, [[maybe_unused]] size_t entry_poin
 
 }
 
+// Only the generated assembly calls anything below, and it exists only where the asm
+// interpreter does; elsewhere these would be compiled for nothing.
+#if HAS_ASM_INTERPRETER
+
 // ===== Slow path functions callable from assembly =====
 // All slow path functions follow the same convention:
 //   i64 func(Interpreter* interp, u32 pc)
@@ -1237,3 +1241,5 @@ u64 asm_helper_math_exp(u64 encoded_value)
 }
 
 } // extern "C"
+
+#endif
