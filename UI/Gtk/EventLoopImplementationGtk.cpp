@@ -129,20 +129,19 @@ void EventLoopManagerGtk::unregister_timer(intptr_t timer_id)
 
 void EventLoopManagerGtk::register_notifier(Core::Notifier& notifier)
 {
-    GIOCondition condition {};
-    switch (notifier.type()) {
-    case Core::Notifier::Type::Read:
-        condition = G_IO_IN;
-        break;
-    case Core::Notifier::Type::Write:
-        condition = G_IO_OUT;
-        break;
-    default:
-        VERIFY_NOT_REACHED();
-    }
+    // The type is a set of flags.
+    int condition = 0;
+    if (has_flag(notifier.type(), Core::Notifier::Type::Read))
+        condition |= G_IO_IN;
+    if (has_flag(notifier.type(), Core::Notifier::Type::Write))
+        condition |= G_IO_OUT;
+    if (has_flag(notifier.type(), Core::Notifier::Type::HangUp))
+        condition |= G_IO_HUP;
+    if (has_flag(notifier.type(), Core::Notifier::Type::Error))
+        condition |= G_IO_ERR;
 
     auto weak_notifier = new WeakPtr<Core::EventReceiver>(notifier.make_weak_ptr());
-    auto source_id = g_unix_fd_add_full(G_PRIORITY_DEFAULT, notifier.fd(), condition, notifier_callback, weak_notifier, notifier_destroy);
+    auto source_id = g_unix_fd_add_full(G_PRIORITY_DEFAULT, notifier.fd(), static_cast<GIOCondition>(condition), notifier_callback, weak_notifier, notifier_destroy);
 
     Threading::MutexLocker locker(s_notifiers_mutex);
     s_notifiers.set(&notifier, source_id);
