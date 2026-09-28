@@ -608,6 +608,9 @@ void log_os_error_code([[maybe_unused]] OSStatus error_code, [[maybe_unused]] So
     }
 
     warnln("{}: Audio Unit error {}: {}", location, error_code, error_string);
+#else
+    // The names above include constants of later SDKs than the legacy ones, so name only the failing call here.
+    warnln("{}: Audio Unit error {}", location, error_code);
 #endif
 }
 
