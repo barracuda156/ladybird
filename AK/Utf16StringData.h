@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <AK/Atomic.h>
+#include <AK/AtomicRefCounted.h>
 #include <AK/NonnullRefPtr.h>
 #include <AK/NumericLimits.h>
 #include <AK/RefCounted.h>
@@ -18,7 +20,7 @@ namespace AK::Detail {
 
 void did_destroy_utf16_fly_string_data(Badge<Detail::Utf16StringData>, Detail::Utf16StringData const&);
 
-class Utf16StringData final : public RefCounted<Utf16StringData> {
+class Utf16StringData final : public AtomicRefCounted<Utf16StringData> {
 public:
     enum class StorageType : u8 {
         ASCII,
@@ -79,12 +81,15 @@ public:
 
     ALWAYS_INLINE u32 hash() const
     {
-        if (!m_has_hash) {
-            m_hash = utf16_view().hash();
-            m_has_hash = true;
+        if (!atomic_load(&m_has_hash, memory_order_acquire)) {
+            u32 hash = utf16_view().hash();
+
+            // Store the hash before the flag, so a thread that sees the flag also sees the hash.
+            atomic_store(&m_hash, hash, memory_order_relaxed);
+            atomic_store(&m_has_hash, true, memory_order_release);
         }
 
-        return m_hash;
+        return atomic_load(&m_hash, memory_order_relaxed);
     }
 
     [[nodiscard]] ALWAYS_INLINE size_t length_in_code_units() const { return m_length_in_code_units & ~(1uz << Detail::UTF16_FLAG); }
@@ -92,9 +97,13 @@ public:
     {
         if (has_ascii_storage())
             return length_in_code_units();
-        if (m_length_in_code_points == NumericLimits<size_t>::max())
-            m_length_in_code_points = calculate_code_point_length();
-        return m_length_in_code_points;
+        // Threads that race here compute the same length.
+        auto length_in_code_points = atomic_load(&m_length_in_code_points, memory_order_relaxed);
+        if (length_in_code_points == NumericLimits<size_t>::max()) {
+            length_in_code_points = calculate_code_point_length();
+            atomic_store(&m_length_in_code_points, length_in_code_points, memory_order_relaxed);
+        }
+        return length_in_code_points;
     }
 
     [[nodiscard]] ALWAYS_INLINE StringView ascii_view() const LIFETIME_BOUND
@@ -109,13 +118,13 @@ public:
             return { m_ascii_data, length_in_code_units() };
 
         Utf16View view { m_utf16_data, length_in_code_units() };
-        view.m_length_in_code_points = m_length_in_code_points;
+        view.m_length_in_code_points = atomic_load(&m_length_in_code_points, memory_order_relaxed);
 
         return view;
     }
 
-    ALWAYS_INLINE void mark_as_fly_string(Badge<Utf16FlyString>) const { m_is_fly_string = true; }
-    [[nodiscard]] ALWAYS_INLINE bool is_fly_string() const { return m_is_fly_string; }
+    ALWAYS_INLINE void mark_as_fly_string(Badge<Utf16FlyString>) const { atomic_store(&m_is_fly_string, true, memory_order_release); }
+    [[nodiscard]] ALWAYS_INLINE bool is_fly_string() const { return atomic_load(&m_is_fly_string, memory_order_acquire); }
 
 private:
     ALWAYS_INLINE Utf16StringData(StorageType storage_type, size_t code_unit_length)
