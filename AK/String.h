@@ -71,14 +71,26 @@ public:
     {
         VERIFY(is_unicode(code_point));
 
-        String string;
-        string.replace_with_new_short_string(UnicodeUtils::bytes_to_store_code_point_in_utf8(code_point), [&](Bytes buffer) {
+        size_t byte_count = UnicodeUtils::bytes_to_store_code_point_in_utf8(code_point);
+        auto write_code_point = [&](Bytes buffer) {
             size_t i = 0;
             (void)UnicodeUtils::code_point_to_utf8(code_point, [&](auto byte) {
                 buffer[i++] = static_cast<u8>(byte);
             });
-        });
+        };
 
+        String string;
+
+        // With 4-byte pointers a short string holds 3 bytes, and a code point beyond the BMP takes 4.
+        if (byte_count > MAX_SHORT_STRING_BYTE_COUNT) {
+            MUST(string.replace_with_new_string(byte_count, [&](Bytes buffer) {
+                write_code_point(buffer);
+                return ErrorOr<void> {};
+            }));
+            return string;
+        }
+
+        string.replace_with_new_short_string(byte_count, write_code_point);
         return string;
     }
 
