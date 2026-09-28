@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <AK/Checked.h>
 #include <AK/Error.h>
 #include <AK/Iterator.h>
 #include <AK/Span.h>
@@ -37,7 +38,10 @@ public:
     {
         if (size == 0)
             return FixedArray<T>();
-        auto* elements = reinterpret_cast<T*>(kmalloc(storage_allocation_size(size)));
+        auto allocation_size = storage_allocation_size(size);
+        if (allocation_size.has_overflow())
+            return Error::from_errno(ENOMEM);
+        auto* elements = reinterpret_cast<T*>(kmalloc(allocation_size.value()));
         if (!elements)
             return Error::from_errno(ENOMEM);
         for (size_t i = 0; i < size; ++i)
@@ -61,7 +65,10 @@ public:
     {
         if (span.size() == 0)
             return FixedArray<T>();
-        auto* elements = reinterpret_cast<T*>(kmalloc(storage_allocation_size(span.size())));
+        auto allocation_size = storage_allocation_size(span.size());
+        if (allocation_size.has_overflow())
+            return Error::from_errno(ENOMEM);
+        auto* elements = reinterpret_cast<T*>(kmalloc(allocation_size.value()));
         if (!elements)
             return Error::from_errno(ENOMEM);
         for (size_t i = 0; i < span.size(); ++i)
@@ -99,7 +106,7 @@ public:
             return;
         for (size_t i = 0; i < m_size; ++i)
             m_elements[i].~T();
-        kfree_sized(m_elements, storage_allocation_size(m_size));
+        kfree_sized(m_elements, storage_allocation_size(m_size).value());
         m_elements = nullptr;
     }
 
@@ -173,9 +180,11 @@ public:
     ReadonlySpan<T> span() const { return { data(), size() }; }
 
 private:
-    static size_t storage_allocation_size(size_t size)
+    static Checked<size_t> storage_allocation_size(size_t size)
     {
-        return size * sizeof(T);
+        Checked<size_t> allocation_size = size;
+        allocation_size *= sizeof(T);
+        return allocation_size;
     }
 
     FixedArray(size_t size, T* elements)
