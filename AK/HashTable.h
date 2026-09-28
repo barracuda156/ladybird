@@ -7,9 +7,11 @@
 
 #pragma once
 
+#include <AK/Checked.h>
 #include <AK/Concepts.h>
 #include <AK/Error.h>
 #include <AK/IntegralMath.h>
+#include <AK/NumericLimits.h>
 #include <AK/ReverseIterator.h>
 #include <AK/StdLibExtras.h>
 #include <AK/Traits.h>
@@ -260,10 +262,15 @@ public:
         // container without it needing to reallocate. Our definition of "capacity" is the number of
         // buckets we can store, but we reallocate earlier because of `grow_at_load_factor_percent`.
         // This calculates the required internal capacity to store `capacity` number of values.
-        size_t required_capacity = (capacity * 100 / grow_at_load_factor_percent) + 1;
-        if (required_capacity <= this->capacity())
+        Checked<size_t> required_capacity = capacity;
+        required_capacity *= 100;
+        required_capacity /= grow_at_load_factor_percent;
+        required_capacity += 1;
+        if (required_capacity.has_overflow())
+            return Error::from_errno(ENOMEM);
+        if (required_capacity.value() <= this->capacity())
             return {};
-        return try_rehash(required_capacity);
+        return try_rehash(required_capacity.value());
     }
     void ensure_capacity(size_t capacity)
     {
@@ -622,8 +629,14 @@ private:
 
     ErrorOr<void> try_rehash(size_t new_capacity)
     {
-        new_capacity = AK::exp2<size_t>(AK::ceil_log2(max(new_capacity, capacity() + 1)));
+        new_capacity = max(new_capacity, capacity() + 1);
+        // The capacity is a power of two, and the size of the buckets has to fit into a size_t.
+        if (new_capacity > NumericLimits<size_t>::max() / 2 + 1)
+            return Error::from_errno(ENOMEM);
+        new_capacity = AK::exp2<size_t>(AK::ceil_log2(new_capacity));
         VERIFY(new_capacity >= size());
+        if (Checked<size_t>::multiplication_would_overflow(new_capacity, sizeof(BucketType)))
+            return Error::from_errno(ENOMEM);
 
         auto* old_buckets = m_buckets;
         auto old_buckets_size = size_in_bytes(capacity());
