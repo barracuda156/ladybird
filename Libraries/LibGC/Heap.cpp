@@ -95,6 +95,13 @@ void Heap::did_free_external_memory(size_t size)
 
 void Heap::update_gc_bytes_threshold(size_t live_cell_bytes, size_t live_external_bytes)
 {
+    // NB: Only a few kinds of cells report what they allocate outside the heap (array buffers and the keyed
+    //     collections), while everything that has an external_memory_size() adds to the live external bytes. A
+    //     threshold that includes them makes collections rarer, and what is not collected takes address space.
+    //     Where there are 32 bits of it, the threshold stays what the cells alone give.
+    if constexpr (sizeof(FlatPtr) < 8)
+        live_external_bytes = 0;
+
     Checked<size_t> live_bytes = live_cell_bytes;
     live_bytes += live_external_bytes;
 
