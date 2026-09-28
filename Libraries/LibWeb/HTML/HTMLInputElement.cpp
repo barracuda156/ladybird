@@ -1361,7 +1361,11 @@ void HTMLInputElement::create_range_input_shadow_tree()
 
     auto keydown_callback_function = JS::NativeFunction::create(
         realm(), [this](JS::VM& vm) {
-            auto key = MUST(vm.argument(0).get(vm, "key"_utf16_fly_string)).as_string().utf8_string();
+            // Script can dispatch a plain Event, without a key, to the slider.
+            auto key_value = MUST(vm.argument(0).get(vm, "key"_utf16_fly_string));
+            if (!key_value.is_string())
+                return JS::js_undefined();
+            auto key = key_value.as_string().utf8_string();
 
             if (key == "ArrowLeft" || key == "ArrowDown")
                 MUST(step_down());
@@ -1382,8 +1386,11 @@ void HTMLInputElement::create_range_input_shadow_tree()
 
     auto wheel_callback_function = JS::NativeFunction::create(
         realm(), [this](JS::VM& vm) {
-            auto delta_y = MUST(vm.argument(0).get(vm, "deltaY"_utf16_fly_string)).as_i32();
-            if (delta_y > 0) {
+            // deltaY is a double, and a plain Event dispatched by script has none.
+            auto delta_y = MUST(vm.argument(0).get(vm, "deltaY"_utf16_fly_string));
+            if (!delta_y.is_number())
+                return JS::js_undefined();
+            if (delta_y.as_double() > 0) {
                 MUST(step_down());
             } else {
                 MUST(step_up());
@@ -1396,12 +1403,16 @@ void HTMLInputElement::create_range_input_shadow_tree()
     add_event_listener_without_options(UIEvents::EventNames::wheel, DOM::IDLEventListener::create(realm(), wheel_callback));
 
     auto update_slider_by_mouse = [this](JS::VM& vm) {
-        auto client_x = MUST(vm.argument(0).get(vm, "clientX"_utf16_fly_string)).as_double();
+        auto client_x = MUST(vm.argument(0).get(vm, "clientX"_utf16_fly_string));
         auto rect = get_bounding_client_rect();
+        // Script can dispatch these events to a slider that has no width (not laid out, or hidden), or without a
+        // clientX; neither gives a position on the track.
+        if (!client_x.is_number() || rect.width() <= 0)
+            return;
         double minimum = *min();
-        double maximum = *max();
+        double maximum = AK::max(*max(), minimum);
         // FIXME: Snap new value to input steps
-        MUST(set_value_as_number(clamp(round(((client_x - rect.left().to_double()) / rect.width().to_double()) * (maximum - minimum) + minimum), minimum, maximum)));
+        MUST(set_value_as_number(clamp(round(((client_x.as_double() - rect.left().to_double()) / rect.width().to_double()) * (maximum - minimum) + minimum), minimum, maximum)));
         user_interaction_did_change_input_value();
     };
 
