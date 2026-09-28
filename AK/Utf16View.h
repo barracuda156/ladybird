@@ -445,7 +445,7 @@ public:
 
     [[nodiscard]] constexpr Utf16View substring_view(size_t code_unit_offset, size_t code_unit_length) const
     {
-        VERIFY(code_unit_offset + code_unit_length <= length_in_code_units());
+        VERIFY(code_unit_offset <= length_in_code_units() && code_unit_length <= length_in_code_units() - code_unit_offset);
 
         if (has_ascii_storage())
             return { m_string.ascii + code_unit_offset, code_unit_length };

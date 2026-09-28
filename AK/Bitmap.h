@@ -104,7 +104,7 @@ public:
     void set_range(size_t start, size_t len)
     {
         VERIFY(start < m_size);
-        VERIFY(start + len <= m_size);
+        VERIFY(len <= m_size - start);
         if (len == 0)
             return;
 

@@ -43,7 +43,7 @@ public:
     [[nodiscard]] size_t count_in_range(size_t start, size_t len, bool value) const
     {
         VERIFY(start < m_size);
-        VERIFY(start + len <= m_size);
+        VERIFY(len <= m_size - start);
         if (len == 0)
             return 0;
 

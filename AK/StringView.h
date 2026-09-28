@@ -119,7 +119,7 @@ public:
     [[nodiscard]] constexpr StringView substring_view(size_t start, size_t length) const
     {
         if !consteval {
-            VERIFY(start + length <= m_length);
+            VERIFY(start <= m_length && length <= m_length - start);
         }
         return { m_characters + start, length };
     }

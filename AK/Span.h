@@ -150,7 +150,7 @@ public:
 
     [[nodiscard]] ALWAYS_INLINE constexpr Span slice(size_t start, size_t length) const
     {
-        VERIFY(start + length <= size());
+        VERIFY(start <= size() && length <= size() - start);
         return { this->m_values + start, length };
     }
     [[nodiscard]] ALWAYS_INLINE constexpr Span slice(size_t start) const
@@ -188,7 +188,7 @@ public:
     ALWAYS_INLINE constexpr void overwrite(size_t offset, void const* data, size_t data_size)
     {
         // make sure we're not told to write past the end
-        VERIFY(offset + data_size <= size() * sizeof(T));
+        VERIFY(offset <= size() * sizeof(T) && data_size <= size() * sizeof(T) - offset);
         TypedTransfer<T>::copy(this->data() + offset, static_cast<T const*>(data), data_size / sizeof(T));
     }
 

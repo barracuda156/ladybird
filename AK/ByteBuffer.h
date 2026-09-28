@@ -9,6 +9,7 @@
 
 #include <AK/Assertions.h>
 #include <AK/Badge.h>
+#include <AK/Checked.h>
 #include <AK/Error.h>
 #include <AK/Span.h>
 #include <AK/Types.h>
@@ -168,7 +169,7 @@ public:
     [[nodiscard]] ErrorOr<ByteBuffer> slice(size_t offset, size_t size) const
     {
         // I cannot hand you a slice I don't have
-        VERIFY(offset + size <= this->size());
+        VERIFY(offset <= this->size() && size <= this->size() - offset);
 
         return copy(offset_pointer(offset), size);
     }
@@ -241,6 +242,8 @@ public:
     ErrorOr<Bytes> get_bytes_for_writing(size_t length)
     {
         auto const old_size = size();
+        if (Checked<size_t>::addition_would_overflow(old_size, length))
+            return Error::from_errno(ENOMEM);
         TRY(try_resize(old_size + length));
         return Bytes { data() + old_size, length };
     }
@@ -284,7 +287,9 @@ public:
             return {};
         VERIFY(data != nullptr);
         auto old_size = size();
-        TRY(try_resize(size() + data_size));
+        if (Checked<size_t>::addition_would_overflow(old_size, data_size))
+            return Error::from_errno(ENOMEM);
+        TRY(try_resize(old_size + data_size));
         __builtin_memcpy(this->data() + old_size, data, data_size);
         return {};
     }
@@ -299,7 +304,7 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
         // make sure we're not told to write past the end
-        VERIFY(offset + data_size <= size());
+        VERIFY(offset <= size() && data_size <= size() - offset);
         __builtin_memmove(this->data() + offset, data, data_size);
 #pragma GCC diagnostic pop
     }
