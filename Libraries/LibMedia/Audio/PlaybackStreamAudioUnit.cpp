@@ -194,9 +194,30 @@ public:
 
         TRY(set_audio_unit_property(state->m_audio_unit, kAudioUnitProperty_StreamFormat, description));
 
-        auto layout = TRY(get_audio_unit_property<AudioChannelLayout>(state->m_audio_unit, kAudioUnitProperty_AudioChannelLayout));
-        check_audio_channel_layout_size(*layout, layout.size());
-        auto channel_map = TRY(audio_channel_layout_to_channel_map(*layout));
+        // Not every output unit reports the channel layout of its output; take the usual layout for its channel count
+        // then, as other Core Audio clients do.
+        auto channel_map = TRY([&]() -> ErrorOr<ChannelMap> {
+            auto layout_or_error = get_audio_unit_property<AudioChannelLayout>(state->m_audio_unit, kAudioUnitProperty_AudioChannelLayout);
+            if (!layout_or_error.is_error()) {
+                auto layout = layout_or_error.release_value();
+                check_audio_channel_layout_size(*layout, layout.size());
+                return audio_channel_layout_to_channel_map(*layout);
+            }
+            switch (description->mChannelsPerFrame) {
+            case 1:
+                return ChannelMap::mono();
+            case 2:
+                return ChannelMap::stereo();
+            case 4:
+                return ChannelMap::quadrophonic();
+            case 6:
+                return ChannelMap::surround_5_1();
+            case 8:
+                return ChannelMap::surround_7_1();
+            default:
+                return layout_or_error.release_error();
+            }
+        }());
         state->m_sample_specification = SampleSpecification(static_cast<u32>(description->mSampleRate), channel_map);
 
         AURenderCallbackStruct callbackStruct;
