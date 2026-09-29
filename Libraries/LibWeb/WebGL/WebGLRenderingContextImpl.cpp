@@ -190,6 +190,8 @@ void WebGLRenderingContextImpl::bind_buffer(WebIDL::UnsignedLong target, GC::Roo
     }
 
     glBindBuffer(target, buffer_handle);
+    if constexpr (page_and_host_byte_order_differ)
+        m_context->vertex_data().bind_buffer(target, buffer_handle);
 }
 
 void WebGLRenderingContextImpl::bind_framebuffer(WebIDL::UnsignedLong target, GC::Root<WebGLFramebuffer> framebuffer)
@@ -448,6 +450,8 @@ void WebGLRenderingContextImpl::delete_buffer(GC::Root<WebGLBuffer> buffer)
     }
 
     glDeleteBuffers(1, &buffer_handle);
+    if constexpr (page_and_host_byte_order_differ)
+        m_context->vertex_data().delete_buffer(buffer_handle);
 }
 
 void WebGLRenderingContextImpl::delete_framebuffer(GC::Root<WebGLFramebuffer> framebuffer)
@@ -607,6 +611,13 @@ void WebGLRenderingContextImpl::disable(WebIDL::UnsignedLong cap)
 void WebGLRenderingContextImpl::disable_vertex_attrib_array(WebIDL::UnsignedLong index)
 {
     m_context->make_current();
+    if constexpr (page_and_host_byte_order_differ) {
+        take_pending_error();
+        glDisableVertexAttribArray(index);
+        if (!last_call_failed())
+            m_context->vertex_data().set_vertex_attribute_array_enabled(index, false);
+        return;
+    }
     glDisableVertexAttribArray(index);
 }
 
@@ -615,6 +626,8 @@ void WebGLRenderingContextImpl::draw_arrays(WebIDL::UnsignedLong mode, WebIDL::L
     m_context->make_current();
     m_context->notify_content_will_change();
     needs_to_present();
+    if constexpr (page_and_host_byte_order_differ)
+        m_context->vertex_data().prepare_to_draw_arrays(first, count);
     glDrawArrays(mode, first, count);
 }
 
@@ -623,6 +636,10 @@ void WebGLRenderingContextImpl::draw_elements(WebIDL::UnsignedLong mode, WebIDL:
     m_context->make_current();
     m_context->notify_content_will_change();
 
+    if constexpr (page_and_host_byte_order_differ) {
+        if (offset >= 0 && static_cast<u64>(offset) <= NumericLimits<u32>::max())
+            m_context->vertex_data().prepare_to_draw_elements(count, type, static_cast<size_t>(offset));
+    }
     glDrawElements(mode, count, type, reinterpret_cast<void*>(offset));
     needs_to_present();
 }
@@ -636,6 +653,13 @@ void WebGLRenderingContextImpl::enable(WebIDL::UnsignedLong cap)
 void WebGLRenderingContextImpl::enable_vertex_attrib_array(WebIDL::UnsignedLong index)
 {
     m_context->make_current();
+    if constexpr (page_and_host_byte_order_differ) {
+        take_pending_error();
+        glEnableVertexAttribArray(index);
+        if (!last_call_failed())
+            m_context->vertex_data().set_vertex_attribute_array_enabled(index, true);
+        return;
+    }
     glEnableVertexAttribArray(index);
 }
 
@@ -826,6 +850,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 2 * sizeof(GLfloat);
         glGetFloatvRobustANGLE(GL_ALIASED_LINE_WIDTH_RANGE, 2, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Float32Array::create(realm(), 2, array_buffer);
     }
@@ -835,6 +860,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 2 * sizeof(GLfloat);
         glGetFloatvRobustANGLE(GL_ALIASED_POINT_SIZE_RANGE, 2, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Float32Array::create(realm(), 2, array_buffer);
     }
@@ -859,6 +885,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 4 * sizeof(GLfloat);
         glGetFloatvRobustANGLE(GL_BLEND_COLOR, 4, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Float32Array::create(realm(), 4, array_buffer);
     }
@@ -903,6 +930,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 4 * sizeof(GLfloat);
         glGetFloatvRobustANGLE(GL_COLOR_CLEAR_VALUE, 4, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Float32Array::create(realm(), 4, array_buffer);
     }
@@ -954,6 +982,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 2 * sizeof(GLfloat);
         glGetFloatvRobustANGLE(GL_DEPTH_RANGE, 2, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Float32Array::create(realm(), 2, array_buffer);
     }
@@ -1068,6 +1097,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 2 * sizeof(GLint);
         glGetIntegervRobustANGLE(GL_MAX_VIEWPORT_DIMS, 2, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Int32Array::create(realm(), 2, array_buffer);
     }
@@ -1141,6 +1171,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 4 * sizeof(GLint);
         glGetIntegervRobustANGLE(GL_SCISSOR_BOX, 4, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Int32Array::create(realm(), 4, array_buffer);
     }
@@ -1272,6 +1303,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
         constexpr size_t buffer_size = 4 * sizeof(GLint);
         glGetIntegervRobustANGLE(GL_VIEWPORT, 4, nullptr, result.data());
         auto byte_buffer = MUST(ByteBuffer::copy(result.data(), buffer_size));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Int32Array::create(realm(), 4, array_buffer);
     }
@@ -1320,6 +1352,7 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(WebIDL::
     case COMPRESSED_TEXTURE_FORMATS: {
         auto formats = enabled_compressed_texture_formats();
         auto byte_buffer = MUST(ByteBuffer::copy(formats.data(), formats.reinterpret<u8 const>().size()));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(formats[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Uint32Array::create(realm(), formats.size(), array_buffer);
     }
@@ -1860,6 +1893,7 @@ JS::Value WebGLRenderingContextImpl::get_vertex_attrib(WebIDL::UnsignedLong inde
         glGetVertexAttribfvRobustANGLE(index, GL_CURRENT_VERTEX_ATTRIB, result.size(), nullptr, result.data());
 
         auto byte_buffer = MUST(ByteBuffer::copy(result.span().reinterpret<u8>()));
+        bring_to_the_order_of_typed_arrays(byte_buffer.bytes(), sizeof(result[0]));
         auto array_buffer = JS::ArrayBuffer::create(realm(), move(byte_buffer));
         return JS::Float32Array::create(realm(), result.size(), array_buffer);
     }
@@ -2329,7 +2363,7 @@ void WebGLRenderingContextImpl::vertex_attrib1fv(WebIDL::UnsignedLong index, Flo
 {
     m_context->make_current();
 
-    auto span = MUST(span_from_float32_list(values, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(values, /* src_offset= */ 0));
     if (span.size() < 1) {
         set_error(GL_INVALID_VALUE);
         return;
@@ -2341,7 +2375,7 @@ void WebGLRenderingContextImpl::vertex_attrib2fv(WebIDL::UnsignedLong index, Flo
 {
     m_context->make_current();
 
-    auto span = MUST(span_from_float32_list(values, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(values, /* src_offset= */ 0));
     if (span.size() < 2) {
         set_error(GL_INVALID_VALUE);
         return;
@@ -2353,7 +2387,7 @@ void WebGLRenderingContextImpl::vertex_attrib3fv(WebIDL::UnsignedLong index, Flo
 {
     m_context->make_current();
 
-    auto span = MUST(span_from_float32_list(values, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(values, /* src_offset= */ 0));
     if (span.size() < 3) {
         set_error(GL_INVALID_VALUE);
         return;
@@ -2365,7 +2399,7 @@ void WebGLRenderingContextImpl::vertex_attrib4fv(WebIDL::UnsignedLong index, Flo
 {
     m_context->make_current();
 
-    auto span = MUST(span_from_float32_list(values, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(values, /* src_offset= */ 0));
     if (span.size() < 4) {
         set_error(GL_INVALID_VALUE);
         return;
@@ -2383,6 +2417,13 @@ void WebGLRenderingContextImpl::vertex_attrib_pointer(WebIDL::UnsignedLong index
         return;
     }
 
+    if constexpr (page_and_host_byte_order_differ) {
+        take_pending_error();
+        glVertexAttribPointer(index, size, type, normalized, stride, reinterpret_cast<void*>(offset));
+        if (!last_call_failed())
+            m_context->vertex_data().set_vertex_attribute_pointer(index, size, type, stride, static_cast<size_t>(offset));
+        return;
+    }
     glVertexAttribPointer(index, size, type, normalized, stride, reinterpret_cast<void*>(offset));
 }
 

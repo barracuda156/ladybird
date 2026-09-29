@@ -13,6 +13,7 @@
 #include <LibGfx/Forward.h>
 #include <LibGfx/Size.h>
 #include <LibWeb/Export.h>
+#include <LibWeb/WebGL/HostOrderVertexData.h>
 
 namespace Web::WebGL {
 
@@ -56,6 +57,9 @@ public:
 
     WebGLVersion webgl_version() const { return m_webgl_version; }
 
+    // The contents of the buffers, for hosts whose byte order is not the one of typed arrays.
+    HostOrderVertexData& vertex_data() { return m_vertex_data; }
+
 private:
     NonnullRefPtr<Gfx::SkiaBackendContext> m_skia_backend_context;
     Gfx::IntSize m_size;
@@ -71,6 +75,8 @@ private:
 #elif defined(USE_VULKAN_IMAGES)
     void allocate_vkimage_painting_surface();
 #endif
+
+    HostOrderVertexData m_vertex_data;
 };
 
 }

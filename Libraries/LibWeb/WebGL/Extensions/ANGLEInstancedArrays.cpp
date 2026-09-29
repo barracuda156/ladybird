@@ -39,12 +39,18 @@ void ANGLEInstancedArrays::vertex_attrib_divisor_angle(GLuint index, GLuint divi
 void ANGLEInstancedArrays::draw_arrays_instanced_angle(GLenum mode, GLint first, GLsizei count, GLsizei primcount)
 {
     m_context->context().make_current();
+    if constexpr (page_and_host_byte_order_differ)
+        m_context->context().vertex_data().prepare_to_draw_arrays_instanced();
     glDrawArraysInstancedANGLE(mode, first, count, primcount);
 }
 
 void ANGLEInstancedArrays::draw_elements_instanced_angle(GLenum mode, GLsizei count, GLenum type, GLintptr offset, GLsizei primcount)
 {
     m_context->context().make_current();
+    if constexpr (page_and_host_byte_order_differ) {
+        if (offset >= 0)
+            m_context->context().vertex_data().prepare_to_draw_elements_instanced(count, type, static_cast<size_t>(offset));
+    }
     glDrawElementsInstancedANGLE(mode, count, type, reinterpret_cast<void*>(offset), primcount);
 }
 

@@ -1124,6 +1124,7 @@ set(SOURCES
     WebGL/Extensions/WebGLCompressedTextureS3tcSrgb.cpp
     WebGL/Extensions/WebGLDrawBuffers.cpp
     WebGL/Extensions/WebGLVertexArrayObjectOES.cpp
+    WebGL/HostOrderVertexData.cpp
     WebGL/OpenGLContext.cpp
     WebGL/WebGL2RenderingContext.cpp
     WebGL/WebGL2RenderingContextImpl.cpp

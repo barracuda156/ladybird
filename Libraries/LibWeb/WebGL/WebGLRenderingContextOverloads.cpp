@@ -31,6 +31,15 @@ void WebGLRenderingContextOverloads::buffer_data(WebIDL::UnsignedLong target, We
 {
     m_context->make_current();
 
+    if constexpr (page_and_host_byte_order_differ) {
+        // OpenGL says below what is wrong with a size that is none.
+        if (size >= 0 && static_cast<u64>(size) <= NumericLimits<u32>::max()) {
+            take_pending_error();
+            keep_error(m_context->vertex_data().buffer_data(target, static_cast<size_t>(size), usage));
+            return;
+        }
+    }
+
     glBufferData(target, size, 0, usage);
 }
 
@@ -39,6 +48,12 @@ void WebGLRenderingContextOverloads::buffer_data(WebIDL::UnsignedLong target, GC
     m_context->make_current();
 
     auto span = MUST(get_offset_span<u8 const>(*data, /* src_offset= */ 0));
+    if constexpr (page_and_host_byte_order_differ) {
+        take_pending_error();
+        keep_error(m_context->vertex_data().buffer_data(target, span, element_size_of(*data), usage));
+        return;
+    }
+
     glBufferData(target, span.size(), span.data(), usage);
 }
 
@@ -47,6 +62,14 @@ void WebGLRenderingContextOverloads::buffer_sub_data(WebIDL::UnsignedLong target
     m_context->make_current();
 
     auto span = MUST(get_offset_span<u8 const>(*data, /* src_offset= */ 0));
+    if constexpr (page_and_host_byte_order_differ) {
+        if (offset >= 0 && static_cast<u64>(offset) <= NumericLimits<u32>::max()) {
+            take_pending_error();
+            keep_error(m_context->vertex_data().buffer_sub_data(target, static_cast<size_t>(offset), span));
+            return;
+        }
+    }
+
     glBufferSubData(target, offset, span.size(), span.data());
 }
 
@@ -86,6 +109,17 @@ void WebGLRenderingContextOverloads::read_pixels(WebIDL::Long x, WebIDL::Long y,
     }
 
     auto span = MUST(get_offset_span<u8>(*pixels, /* src_offset= */ 0));
+    if constexpr (page_and_host_byte_order_differ) {
+        if (element_size_of_pixel_type(type) > 1) {
+            take_pending_error();
+            glReadPixelsRobustANGLE(x, y, width, height, format, type, span.size(), nullptr, nullptr, nullptr, span.data());
+            // What is not written is not reversed.
+            if (!last_call_failed())
+                bring_to_the_order_of_typed_arrays(span, element_size_of_pixel_type(type));
+            return;
+        }
+    }
+
     glReadPixelsRobustANGLE(x, y, width, height, format, type, span.size(), nullptr, nullptr, nullptr, span.data());
 }
 
@@ -94,7 +128,8 @@ void WebGLRenderingContextOverloads::tex_image2d(WebIDL::UnsignedLong target, We
     m_context->make_current();
 
     if (pixels) {
-        auto span = MUST(get_offset_span<u8>(*pixels, /* src_offset= */ 0));
+        auto page_bytes = MUST(get_offset_span<u8>(*pixels, /* src_offset= */ 0));
+        auto span = SET_ERROR_VALUE_IF_ERROR(HostOrderBytes::create(page_bytes, element_size_of_pixel_type(type)), GL_OUT_OF_MEMORY);
         glTexImage2DRobustANGLE(target, level, internalformat, width, height, border, format, type, span.size(), span.data());
         return;
     }
@@ -172,7 +207,8 @@ void WebGLRenderingContextOverloads::tex_sub_image2d(WebIDL::UnsignedLong target
 {
     m_context->make_current();
 
-    auto span = MUST(get_offset_span<u8>(*pixels, /* src_offset= */ 0));
+    auto page_bytes = MUST(get_offset_span<u8>(*pixels, /* src_offset= */ 0));
+    auto span = SET_ERROR_VALUE_IF_ERROR(HostOrderBytes::create(page_bytes, element_size_of_pixel_type(type)), GL_OUT_OF_MEMORY);
     glTexSubImage2DRobustANGLE(target, level, xoffset, yoffset, width, height, format, type, span.size(), span.data());
 }
 
@@ -197,7 +233,7 @@ void WebGLRenderingContextOverloads::uniform1fv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_float32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(v, /* src_offset= */ 0));
     glUniform1fv(location_handle, span.size(), span.data());
 }
 
@@ -210,7 +246,7 @@ void WebGLRenderingContextOverloads::uniform2fv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_float32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(v, /* src_offset= */ 0));
     if (span.size() % 2 != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -227,7 +263,7 @@ void WebGLRenderingContextOverloads::uniform3fv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_float32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(v, /* src_offset= */ 0));
     if (span.size() % 3 != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -244,7 +280,7 @@ void WebGLRenderingContextOverloads::uniform4fv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_float32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(v, /* src_offset= */ 0));
     if (span.size() % 4 != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -261,7 +297,7 @@ void WebGLRenderingContextOverloads::uniform1iv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_int32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_int32_list(v, /* src_offset= */ 0));
     glUniform1iv(location_handle, span.size(), span.data());
 }
 
@@ -274,7 +310,7 @@ void WebGLRenderingContextOverloads::uniform2iv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_int32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_int32_list(v, /* src_offset= */ 0));
     if (span.size() % 2 != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -291,7 +327,7 @@ void WebGLRenderingContextOverloads::uniform3iv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_int32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_int32_list(v, /* src_offset= */ 0));
     if (span.size() % 3 != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -308,7 +344,7 @@ void WebGLRenderingContextOverloads::uniform4iv(GC::Root<WebGLUniformLocation> l
 
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
-    auto span = MUST(span_from_int32_list(v, /* src_offset= */ 0));
+    auto span = MUST(host_order_int32_list(v, /* src_offset= */ 0));
     if (span.size() % 4 != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -326,7 +362,7 @@ void WebGLRenderingContextOverloads::uniform_matrix2fv(GC::Root<WebGLUniformLoca
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
     constexpr auto matrix_size = 2 * 2;
-    auto span = MUST(span_from_float32_list(value, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(value, /* src_offset= */ 0));
     if (span.size() % matrix_size != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -344,7 +380,7 @@ void WebGLRenderingContextOverloads::uniform_matrix3fv(GC::Root<WebGLUniformLoca
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
     constexpr auto matrix_size = 3 * 3;
-    auto span = MUST(span_from_float32_list(value, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(value, /* src_offset= */ 0));
     if (span.size() % matrix_size != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;
@@ -362,7 +398,7 @@ void WebGLRenderingContextOverloads::uniform_matrix4fv(GC::Root<WebGLUniformLoca
     GLuint location_handle = SET_ERROR_VALUE_IF_ERROR(location->handle(m_current_program), GL_INVALID_OPERATION);
 
     constexpr auto matrix_size = 4 * 4;
-    auto span = MUST(span_from_float32_list(value, /* src_offset= */ 0));
+    auto span = MUST(host_order_float32_list(value, /* src_offset= */ 0));
     if (span.size() % matrix_size != 0) [[unlikely]] {
         set_error(GL_INVALID_VALUE);
         return;

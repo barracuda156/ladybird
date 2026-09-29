@@ -11,6 +11,7 @@
 #include <LibJS/Runtime/TypedArray.h>
 #include <LibWeb/Bindings/PlatformObject.h>
 #include <LibWeb/Forward.h>
+#include <LibWeb/WebGL/HostOrderArguments.h>
 #include <LibWeb/WebGL/Types.h>
 #include <LibWeb/WebIDL/Buffers.h>
 #include <LibWeb/WebIDL/Types.h>
@@ -133,6 +134,19 @@ protected:
         return get_offset_span(buffer->data(), src_offset, src_length_override);
     }
 
+    // The same in the byte order of the host; a list that is no typed array has it already.
+    static ErrorOr<HostOrderNumbers<float>> host_order_float32_list(Float32List& float32_list, WebIDL::UnsignedLongLong src_offset, WebIDL::UnsignedLong src_length_override = 0)
+    {
+        auto span = TRY(span_from_float32_list(float32_list, src_offset, src_length_override));
+        return HostOrderNumbers<float> { span, float32_list.has<GC::Root<JS::Float32Array>>() };
+    }
+
+    static ErrorOr<HostOrderNumbers<int>> host_order_int32_list(Int32List& int32_list, WebIDL::UnsignedLongLong src_offset, WebIDL::UnsignedLong src_length_override = 0)
+    {
+        auto span = TRY(span_from_int32_list(int32_list, src_offset, src_length_override));
+        return HostOrderNumbers<int> { span, int32_list.has<GC::Root<JS::Int32Array>>() };
+    }
+
     Optional<Gfx::BitmapExportResult> read_and_pixel_convert_texture_image_source(TexImageSource const& source, WebIDL::UnsignedLong format, WebIDL::UnsignedLong type, Optional<int> destination_width = OptionalNone {}, Optional<int> destination_height = OptionalNone {});
 
     static Vector<GLchar> null_terminated_string(StringView string)
@@ -147,6 +161,13 @@ protected:
 
     GLenum get_error_value();
     void set_error(GLenum error);
+
+    // For calls whose outcome decides what is done next. take_pending_error() keeps an error that OpenGL has from
+    // earlier calls for getError(); after it, last_call_failed() speaks of the one call made since, and keeps
+    // its error as well.
+    void take_pending_error();
+    bool last_call_failed();
+    void keep_error(GLenum error);
 
     // UNPACK_FLIP_Y_WEBGL of type boolean
     //      If set, then during any subsequent calls to texImage2D or texSubImage2D, the source data is flipped along

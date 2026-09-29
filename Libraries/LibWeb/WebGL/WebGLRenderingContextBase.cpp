@@ -319,6 +319,24 @@ GLenum WebGLRenderingContextBase::get_error_value()
     return error;
 }
 
+void WebGLRenderingContextBase::keep_error(GLenum error)
+{
+    if (m_error == GL_NO_ERROR)
+        m_error = error;
+}
+
+void WebGLRenderingContextBase::take_pending_error()
+{
+    keep_error(glGetError());
+}
+
+bool WebGLRenderingContextBase::last_call_failed()
+{
+    auto error = glGetError();
+    keep_error(error);
+    return error != GL_NO_ERROR;
+}
+
 void WebGLRenderingContextBase::set_error(GLenum error)
 {
     if (m_error != GL_NO_ERROR)
