@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/ByteBuffer.h>
 #include <AK/NonnullOwnPtr.h>
 #include <AK/NonnullRefPtr.h>
 #include <AK/RefPtr.h>
@@ -30,14 +31,22 @@ public:
         bool antialias;
     };
 
-    static OwnPtr<OpenGLContext> create(NonnullRefPtr<Gfx::SkiaBackendContext>, WebGLVersion, DrawingBufferOptions);
+#if defined(LADYBIRD_LEGACY_MACOS)
+    // Pages are painted without the graphics card there, so Skia has no context for it. WebGL draws with the
+    // OpenGL of the system, and the picture is read back for the painting.
+    using SkiaBackendContext = RefPtr<Gfx::SkiaBackendContext>;
+#else
+    using SkiaBackendContext = NonnullRefPtr<Gfx::SkiaBackendContext>;
+#endif
+
+    static OwnPtr<OpenGLContext> create(SkiaBackendContext, WebGLVersion, DrawingBufferOptions);
 
     void notify_content_will_change();
     void clear_buffer_to_default_values();
     void allocate_painting_surface_if_needed();
 
     struct Impl;
-    OpenGLContext(NonnullRefPtr<Gfx::SkiaBackendContext>, Impl, WebGLVersion, DrawingBufferOptions);
+    OpenGLContext(SkiaBackendContext, Impl, WebGLVersion, DrawingBufferOptions);
 
     ~OpenGLContext();
 
@@ -61,7 +70,7 @@ public:
     HostOrderVertexData& vertex_data() { return m_vertex_data; }
 
 private:
-    NonnullRefPtr<Gfx::SkiaBackendContext> m_skia_backend_context;
+    SkiaBackendContext m_skia_backend_context;
     Gfx::IntSize m_size;
     RefPtr<Gfx::PaintingSurface> m_painting_surface;
     NonnullOwnPtr<Impl> m_impl;
@@ -74,6 +83,12 @@ private:
     void allocate_iosurface_painting_surface();
 #elif defined(USE_VULKAN_IMAGES)
     void allocate_vkimage_painting_surface();
+#elif defined(LADYBIRD_LEGACY_MACOS)
+    void allocate_bitmap_painting_surface();
+    void read_back();
+
+    RefPtr<Gfx::Bitmap> m_read_back_bitmap;
+    ByteBuffer m_read_back_rows;
 #endif
 
     HostOrderVertexData m_vertex_data;

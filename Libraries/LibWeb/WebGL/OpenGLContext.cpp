@@ -7,6 +7,7 @@
 #include <AK/HashMap.h>
 #include <AK/OwnPtr.h>
 #include <AK/String.h>
+#include <LibGfx/Bitmap.h>
 #include <LibGfx/PaintingSurface.h>
 #include <LibWeb/WebGL/OpenGLContext.h>
 
@@ -27,6 +28,11 @@ extern "C" {
 // Enable WebGL if we're on MacOS and can use Metal or if we can use shareable Vulkan images
 #if defined(AK_MACOS_HAS_METAL) || defined(USE_VULKAN_IMAGES)
 #    define ENABLE_WEBGL 1
+#elif defined(LADYBIRD_LEGACY_MACOS)
+// Without both, ANGLE draws with the OpenGL of the system into a texture of its own, and what it has drawn is read
+// back into a bitmap when the canvas is presented.
+#    define ENABLE_WEBGL 1
+#    define WEBGL_READS_BACK 1
 #endif
 
 namespace Web::WebGL {
@@ -42,6 +48,11 @@ struct OpenGLContext::Impl {
     GLuint depth_buffer { 0 };
     EGLint texture_target { 0 };
 
+#ifdef WEBGL_READS_BACK
+    // GL_BGRA_EXT or GL_RGBA; 0 until it is known what the driver can do.
+    GLenum read_back_format { 0 };
+#endif
+
 #ifdef USE_VULKAN_IMAGES
     EGLImage egl_image { EGL_NO_IMAGE };
     struct {
@@ -51,7 +62,7 @@ struct OpenGLContext::Impl {
 #endif
 };
 
-OpenGLContext::OpenGLContext(NonnullRefPtr<Gfx::SkiaBackendContext> skia_backend_context, Impl impl, WebGLVersion webgl_version, DrawingBufferOptions drawing_buffer_options)
+OpenGLContext::OpenGLContext(SkiaBackendContext skia_backend_context, Impl impl, WebGLVersion webgl_version, DrawingBufferOptions drawing_buffer_options)
     : m_skia_backend_context(move(skia_backend_context))
     , m_impl(make<Impl>(impl))
     , m_webgl_version(webgl_version)
@@ -130,7 +141,7 @@ static EGLConfig get_egl_config(EGLDisplay display)
 }
 #endif
 
-OwnPtr<OpenGLContext> OpenGLContext::create(NonnullRefPtr<Gfx::SkiaBackendContext> skia_backend_context, WebGLVersion webgl_version, [[maybe_unused]] DrawingBufferOptions drawing_buffer_options)
+OwnPtr<OpenGLContext> OpenGLContext::create(SkiaBackendContext skia_backend_context, WebGLVersion webgl_version, [[maybe_unused]] DrawingBufferOptions drawing_buffer_options)
 {
 #ifdef ENABLE_WEBGL
     EGLAttrib display_attributes[] = {
@@ -141,6 +152,8 @@ OwnPtr<OpenGLContext> OpenGLContext::create(NonnullRefPtr<Gfx::SkiaBackendContex
         EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE,
         EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
         EGL_PLATFORM_SURFACELESS_MESA,
+#    elif defined(WEBGL_READS_BACK)
+        EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE,
 #    endif
         EGL_NONE,
     };
@@ -167,7 +180,7 @@ OwnPtr<OpenGLContext> OpenGLContext::create(NonnullRefPtr<Gfx::SkiaBackendContex
 #    if defined(AK_MACOS_HAS_METAL)
     eglGetConfigAttrib(display, config, EGL_BIND_TO_TEXTURE_TARGET_ANGLE, &texture_target);
     VERIFY(texture_target == EGL_TEXTURE_RECTANGLE_ANGLE || texture_target == EGL_TEXTURE_2D);
-#    elif defined(USE_VULKAN_IMAGES)
+#    elif defined(USE_VULKAN_IMAGES) || defined(WEBGL_READS_BACK)
     texture_target = EGL_TEXTURE_2D;
 #    endif
 
@@ -317,6 +330,95 @@ void OpenGLContext::allocate_iosurface_painting_surface()
 }
 #endif
 
+#ifdef WEBGL_READS_BACK
+static bool is_in_list(char const* list, StringView name)
+{
+    if (!list)
+        return false;
+    for (auto entry : StringView { list, strlen(list) }.split_view(' ')) {
+        if (entry == name)
+            return true;
+    }
+    return false;
+}
+
+void OpenGLContext::allocate_bitmap_painting_surface()
+{
+    eglMakeCurrent(m_impl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, m_impl->context);
+
+    if (m_impl->read_back_format == 0) {
+        // The bitmaps of the painting are BGRA. Reading that spares the painting a conversion.
+        if (is_in_list(reinterpret_cast<char const*>(glGetString(GL_REQUESTABLE_EXTENSIONS_ANGLE)), "GL_EXT_read_format_bgra"sv))
+            glRequestExtensionANGLE("GL_EXT_read_format_bgra");
+        auto can_read_bgra = is_in_list(reinterpret_cast<char const*>(glGetString(GL_EXTENSIONS)), "GL_EXT_read_format_bgra"sv);
+        m_impl->read_back_format = can_read_bgra ? GL_BGRA_EXT : GL_RGBA;
+    }
+
+    // A canvas can be larger than what the graphics card has textures for; the drawing buffer is not.
+    GLint largest_texture = 0;
+    GLint largest_renderbuffer = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &largest_texture);
+    glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &largest_renderbuffer);
+    auto largest = max(1, min(largest_texture, largest_renderbuffer));
+    Gfx::IntSize const size { clamp(m_size.width(), 1, largest), clamp(m_size.height(), 1, largest) };
+
+    auto format = m_impl->read_back_format == GL_BGRA_EXT ? Gfx::BitmapFormat::BGRA8888 : Gfx::BitmapFormat::RGBA8888;
+    m_read_back_bitmap = MUST(Gfx::Bitmap::create(format, Gfx::AlphaType::Premultiplied, size));
+    m_read_back_rows = MUST(ByteBuffer::create_uninitialized(m_read_back_bitmap->size_in_bytes()));
+    m_painting_surface = Gfx::PaintingSurface::wrap_bitmap(*m_read_back_bitmap);
+
+    GLint texture_of_the_page = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture_of_the_page);
+
+    glGenTextures(1, &m_impl->color_buffer);
+    glBindTexture(GL_TEXTURE_2D, m_impl->color_buffer);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.width(), size.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    glBindTexture(GL_TEXTURE_2D, texture_of_the_page);
+
+    glViewport(0, 0, size.width(), size.height());
+}
+
+// Copies what was drawn into the bitmap of the painting surface. The rows of OpenGL start at the bottom.
+void OpenGLContext::read_back()
+{
+    auto const is_webgl2 = m_webgl_version == WebGLVersion::WebGL2;
+    GLenum const framebuffer_target = is_webgl2 ? GL_READ_FRAMEBUFFER : GL_FRAMEBUFFER;
+    GLenum const framebuffer_binding = is_webgl2 ? GL_READ_FRAMEBUFFER_BINDING : GL_FRAMEBUFFER_BINDING;
+
+    GLint framebuffer_of_the_page = 0;
+    GLint pack_alignment_of_the_page = 4;
+    GLint pack_buffer_of_the_page = 0;
+    glGetIntegerv(framebuffer_binding, &framebuffer_of_the_page);
+    glGetIntegerv(GL_PACK_ALIGNMENT, &pack_alignment_of_the_page);
+    if (is_webgl2) {
+        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer_of_the_page);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    }
+
+    glBindFramebuffer(framebuffer_target, m_impl->framebuffer);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+    auto const width = m_read_back_bitmap->width();
+    auto const height = m_read_back_bitmap->height();
+    glReadPixels(0, 0, width, height, m_impl->read_back_format, GL_UNSIGNED_BYTE, m_read_back_rows.data());
+
+    glPixelStorei(GL_PACK_ALIGNMENT, pack_alignment_of_the_page);
+    glBindFramebuffer(framebuffer_target, framebuffer_of_the_page);
+    if (is_webgl2)
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, pack_buffer_of_the_page);
+
+    m_painting_surface->notify_content_will_change();
+    size_t const bytes_per_row = static_cast<size_t>(width) * 4;
+    for (int y = 0; y < height; ++y)
+        memcpy(m_read_back_bitmap->scanline_u8(height - 1 - y), m_read_back_rows.data() + y * bytes_per_row, bytes_per_row);
+}
+#endif
+
 #ifdef USE_VULKAN_IMAGES
 void OpenGLContext::allocate_vkimage_painting_surface()
 {
@@ -392,10 +494,17 @@ void OpenGLContext::allocate_painting_surface_if_needed()
 
     VERIFY(!m_size.is_empty());
 
+    auto drawing_buffer_size = m_size;
+    auto depth_and_stencil = m_drawing_buffer_options.depth && m_drawing_buffer_options.stencil;
 #    if defined(AK_MACOS_HAS_IOSURFACE)
     allocate_iosurface_painting_surface();
 #    elif defined(USE_VULKAN_IMAGES)
     allocate_vkimage_painting_surface();
+#    elif defined(WEBGL_READS_BACK)
+    allocate_bitmap_painting_surface();
+    drawing_buffer_size = m_read_back_bitmap->size();
+    // OpenGL before 3.0 has the stencil together with the depth only.
+    depth_and_stencil = m_drawing_buffer_options.stencil;
 #    endif
     VERIFY(m_painting_surface);
     VERIFY(eglGetCurrentContext() == m_impl->context);
@@ -408,15 +517,15 @@ void OpenGLContext::allocate_painting_surface_if_needed()
         glGenRenderbuffers(1, &m_impl->depth_buffer);
         glBindRenderbuffer(GL_RENDERBUFFER, m_impl->depth_buffer);
 
-        if (m_drawing_buffer_options.depth && m_drawing_buffer_options.stencil) {
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_size.width(), m_size.height());
+        if (depth_and_stencil) {
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, drawing_buffer_size.width(), drawing_buffer_size.height());
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_impl->depth_buffer);
         } else if (m_drawing_buffer_options.depth) {
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, m_size.width(), m_size.height());
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, drawing_buffer_size.width(), drawing_buffer_size.height());
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_impl->depth_buffer);
         } else {
             VERIFY(m_drawing_buffer_options.stencil);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, m_size.width(), m_size.height());
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, drawing_buffer_size.width(), drawing_buffer_size.height());
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_impl->depth_buffer);
         }
     }
@@ -455,6 +564,8 @@ void OpenGLContext::present(bool preserve_drawing_buffer)
 #    elif defined(USE_VULKAN_IMAGES)
     // FIXME: CPU sync for now, but it would be better to export a fence and have Skia wait for it before reading from the surface
     glFinish();
+#    elif defined(WEBGL_READS_BACK)
+    read_back();
 #    endif
 
     // "By default, after compositing the contents of the drawing buffer shall be cleared to their default values, as shown in the table above.

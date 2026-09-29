@@ -35,16 +35,23 @@ JS::ThrowCompletionOr<GC::Ptr<WebGL2RenderingContext>> WebGL2RenderingContext::c
     auto context_attributes = TRY(convert_value_to_context_attributes_dictionary(canvas_element.vm(), options));
 
     auto skia_backend_context = Gfx::SkiaBackendContext::the();
+#if !defined(LADYBIRD_LEGACY_MACOS)
     if (!skia_backend_context) {
         fire_webgl_context_creation_error(canvas_element);
         return GC::Ptr<WebGL2RenderingContext> { nullptr };
     }
+#endif
     OpenGLContext::DrawingBufferOptions context_options {
         .depth = context_attributes.depth,
         .stencil = context_attributes.stencil,
         .antialias = context_attributes.antialias,
     };
+#if defined(LADYBIRD_LEGACY_MACOS)
+    // Pages are painted without the graphics card there, and WebGL does not need the context of Skia for it.
+    auto context = OpenGLContext::create(skia_backend_context, OpenGLContext::WebGLVersion::WebGL2, context_options);
+#else
     auto context = OpenGLContext::create(*skia_backend_context, OpenGLContext::WebGLVersion::WebGL2, context_options);
+#endif
     if (!context) {
         fire_webgl_context_creation_error(canvas_element);
         return GC::Ptr<WebGL2RenderingContext> { nullptr };
