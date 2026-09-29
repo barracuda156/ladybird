@@ -41,6 +41,9 @@ public:
     WebContentView(QWidget* window, RefPtr<WebView::WebContentClient> parent_client = nullptr, size_t page_index = 0, WebContentViewInitialState initial_state = {});
     virtual ~WebContentView() override;
 
+    // Qt 4's QWidget has handle() too (the native window handle), which makes view.handle() ambiguous.
+    using WebView::ViewImplementation::handle;
+
     virtual void paintEvent(QPaintEvent*) override;
     virtual void resizeEvent(QResizeEvent*) override;
     virtual void leaveEvent(QEvent* event) override;
