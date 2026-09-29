@@ -1452,7 +1452,7 @@ static ErrorOr<void> decode_bmp_pixel_data(BMPLoadingContext& context)
                 // AND mask = 0 -> fully opaque
                 // AND mask = 1 -> fully transparent
                 u8 and_byte = (byte >> (mask)) & 0x1;
-                auto pixel = context.bitmap->scanline(row)[column];
+                RawPixel pixel = context.bitmap->scanline(row)[column];
 
                 if (and_byte) {
                     pixel &= 0x00ffffff;

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <AK/AtomicRefCounted.h>
+#include <AK/Endian.h>
 #include <AK/Function.h>
 #include <LibCore/AnonymousBuffer.h>
 #include <LibGfx/Color.h>
@@ -19,6 +20,12 @@ namespace Gfx {
 
 // A pixel value that does not express any information about its component order
 using RawPixel = u32;
+
+// A bitmap keeps every pixel as four bytes in the order that its format names (BGRA8888 is B, G, R, A) on hosts
+// of either byte order: Skia, the image codecs and the UI toolkits all address the memory that way.
+// A RawPixel is those four bytes taken as a little-endian number, which makes a BGRA8888 pixel 0xAARRGGBB, and
+// a StoredPixel is a RawPixel as it sits in the memory of a bitmap.
+using StoredPixel = LittleEndian<RawPixel>;
 
 #define ENUMERATE_BITMAP_FORMATS(X) \
     X(Invalid)                      \
@@ -72,18 +79,18 @@ public:
 
     [[nodiscard]] u8* scanline_u8(int physical_y);
     [[nodiscard]] u8 const* scanline_u8(int physical_y) const;
-    [[nodiscard]] RawPixel* scanline(int physical_y);
-    [[nodiscard]] RawPixel const* scanline(int physical_y) const;
+    [[nodiscard]] StoredPixel* scanline(int physical_y);
+    [[nodiscard]] StoredPixel const* scanline(int physical_y) const;
 
     [[nodiscard]] u8* unchecked_scanline_u8(int physical_y);
     [[nodiscard]] u8 const* unchecked_scanline_u8(int physical_y) const;
-    [[nodiscard]] RawPixel* unchecked_scanline(int physical_y);
-    [[nodiscard]] RawPixel const* unchecked_scanline(int physical_y) const;
+    [[nodiscard]] StoredPixel* unchecked_scanline(int physical_y);
+    [[nodiscard]] StoredPixel const* unchecked_scanline(int physical_y) const;
 
-    [[nodiscard]] RawPixel* begin();
-    [[nodiscard]] RawPixel const* begin() const;
-    [[nodiscard]] RawPixel* end();
-    [[nodiscard]] RawPixel const* end() const;
+    [[nodiscard]] StoredPixel* begin();
+    [[nodiscard]] StoredPixel const* begin() const;
+    [[nodiscard]] StoredPixel* end();
+    [[nodiscard]] StoredPixel const* end() const;
     [[nodiscard]] size_t data_size() const;
 
     [[nodiscard]] IntRect rect() const { return { {}, m_size }; }
@@ -166,14 +173,14 @@ ALWAYS_INLINE u8 const* Bitmap::unchecked_scanline_u8(int y) const
     return reinterpret_cast<u8 const*>(m_data) + (y * m_pitch);
 }
 
-ALWAYS_INLINE RawPixel* Bitmap::unchecked_scanline(int y)
+ALWAYS_INLINE StoredPixel* Bitmap::unchecked_scanline(int y)
 {
-    return reinterpret_cast<RawPixel*>(unchecked_scanline_u8(y));
+    return reinterpret_cast<StoredPixel*>(unchecked_scanline_u8(y));
 }
 
-ALWAYS_INLINE RawPixel const* Bitmap::unchecked_scanline(int y) const
+ALWAYS_INLINE StoredPixel const* Bitmap::unchecked_scanline(int y) const
 {
-    return reinterpret_cast<RawPixel const*>(unchecked_scanline_u8(y));
+    return reinterpret_cast<StoredPixel const*>(unchecked_scanline_u8(y));
 }
 
 ALWAYS_INLINE u8* Bitmap::scanline_u8(int y)
@@ -190,34 +197,34 @@ ALWAYS_INLINE u8 const* Bitmap::scanline_u8(int y) const
     return unchecked_scanline_u8(y);
 }
 
-ALWAYS_INLINE RawPixel* Bitmap::scanline(int y)
+ALWAYS_INLINE StoredPixel* Bitmap::scanline(int y)
 {
-    return reinterpret_cast<RawPixel*>(scanline_u8(y));
+    return reinterpret_cast<StoredPixel*>(scanline_u8(y));
 }
 
-ALWAYS_INLINE RawPixel const* Bitmap::scanline(int y) const
+ALWAYS_INLINE StoredPixel const* Bitmap::scanline(int y) const
 {
-    return reinterpret_cast<RawPixel const*>(scanline_u8(y));
+    return reinterpret_cast<StoredPixel const*>(scanline_u8(y));
 }
 
-ALWAYS_INLINE RawPixel* Bitmap::begin()
+ALWAYS_INLINE StoredPixel* Bitmap::begin()
 {
     return scanline(0);
 }
 
-ALWAYS_INLINE RawPixel const* Bitmap::begin() const
+ALWAYS_INLINE StoredPixel const* Bitmap::begin() const
 {
     return scanline(0);
 }
 
-ALWAYS_INLINE RawPixel* Bitmap::end()
+ALWAYS_INLINE StoredPixel* Bitmap::end()
 {
-    return reinterpret_cast<RawPixel*>(reinterpret_cast<u8*>(m_data) + data_size());
+    return reinterpret_cast<StoredPixel*>(reinterpret_cast<u8*>(m_data) + data_size());
 }
 
-ALWAYS_INLINE RawPixel const* Bitmap::end() const
+ALWAYS_INLINE StoredPixel const* Bitmap::end() const
 {
-    return reinterpret_cast<RawPixel const*>(reinterpret_cast<u8 const*>(m_data) + data_size());
+    return reinterpret_cast<StoredPixel const*>(reinterpret_cast<u8 const*>(m_data) + data_size());
 }
 
 ALWAYS_INLINE size_t Bitmap::data_size() const
@@ -229,7 +236,7 @@ ALWAYS_INLINE Color Bitmap::get_pixel(int x, int y) const
 {
     VERIFY(x >= 0);
     VERIFY(x < width());
-    auto pixel = scanline(y)[x];
+    RawPixel pixel = scanline(y)[x];
     switch (m_format) {
     case BitmapFormat::BGRx8888:
         return Color::from_bgrx(pixel);
