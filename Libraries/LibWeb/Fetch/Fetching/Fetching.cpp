@@ -1143,7 +1143,7 @@ GC::Ref<PendingResponse> scheme_fetch(JS::Realm& realm, Infrastructure::FetchPar
             return origin->is_opaque() || origin->scheme() == "file"sv || origin->scheme() == "resource"sv;
         };
 
-        bool browser_initiated_navigation = request->client() == nullptr && request->mode() == Infrastructure::Request::Mode::Navigate;
+        bool browser_initiated_navigation = (request->client() == nullptr || request->browser_ui_navigation()) && request->mode() == Infrastructure::Request::Mode::Navigate;
         if (!browser_initiated_navigation && !origin_is_allowed())
             return error;
 

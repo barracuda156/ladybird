@@ -120,7 +120,10 @@ void HTMLAnchorElement::activation_behavior(Web::DOM::Event const& event)
 
 bool HTMLAnchorElement::has_download_preference() const
 {
-    return has_attribute(HTML::AttributeNames::download);
+    // AD-HOC: This is a preference of the user (such as a modifier key while clicking), which there is no way to
+    //         express yet. The download attribute is the page's wish and must not make the navigation one from the
+    //         browser UI, which may reach file: URLs.
+    return false;
 }
 
 // https://html.spec.whatwg.org/multipage/interaction.html#dom-tabindex

@@ -1098,6 +1098,10 @@ static void create_navigation_params_by_fetching(GC::Ptr<SessionHistoryEntry> en
     request->set_referrer_policy(entry->document_state()->request_referrer_policy());
     request->set_policy_container(source_snapshot_params.source_policy_container);
 
+    // AD-HOC: Scheme fetch lets a navigation from the browser UI reach file: URLs, which it recognizes upstream by the
+    //         request having no client. Ours has the active document's client, so say so on the request.
+    request->set_browser_ui_navigation(user_involvement == UserNavigationInvolvement::BrowserUI);
+
     // 4. If navigable is a top-level traversable, then set request's top-level navigation initiator origin to entry's
     //    document state's initiator origin.
     if (navigable->is_top_level_traversable())

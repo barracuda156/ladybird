@@ -258,6 +258,9 @@ public:
     [[nodiscard]] bool user_activation() const { return m_user_activation; }
     void set_user_activation(bool user_activation) { m_user_activation = user_activation; }
 
+    [[nodiscard]] bool browser_ui_navigation() const { return m_browser_ui_navigation; }
+    void set_browser_ui_navigation(bool browser_ui_navigation) { m_browser_ui_navigation = browser_ui_navigation; }
+
     [[nodiscard]] bool render_blocking() const { return m_render_blocking; }
     void set_render_blocking(bool render_blocking) { m_render_blocking = render_blocking; }
 
@@ -483,6 +486,10 @@ private:
     // https://fetch.spec.whatwg.org/#request-user-activation
     // A request has an associated boolean user-activation. Unless stated otherwise, it is false.
     bool m_user_activation { false };
+
+    // AD-HOC: Set for a navigation request that the browser UI started. Such a navigation has no source document, so
+    //         upstream gives its request no client; our navigate still takes the active document as the source.
+    bool m_browser_ui_navigation { false };
 
     // https://fetch.spec.whatwg.org/#request-render-blocking
     // A request has an associated boolean render-blocking. Unless stated otherwise, it is false.
