@@ -182,6 +182,13 @@ Optional<WebView::ViewImplementation&> Application::open_blank_new_tab(Web::HTML
     return static_cast<WebView::ViewImplementation&>(tab.view());
 }
 
+bool Application::activate_tab_with_url(URL::URL const& url) const
+{
+    if (!m_active_window)
+        return false;
+    return m_active_window->activate_tab_with_url(url);
+}
+
 Optional<ByteString> Application::ask_user_for_download_path(StringView file) const
 {
     if (!m_active_window)

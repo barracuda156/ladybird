@@ -68,6 +68,8 @@ static char const* primary_accelerator_for_action(WebView::ActionID id)
         return "<Ctrl>d";
     case WebView::ActionID::ToggleBookmarksBar:
         return "<Ctrl><Shift>b";
+    case WebView::ActionID::ViewHistory:
+        return "<Ctrl>h";
     case WebView::ActionID::OpenProcessesPage:
         return "<Ctrl><Shift>m";
     case WebView::ActionID::OpenSettingsPage:
@@ -151,6 +153,11 @@ static void initialize_native_control(WebView::Action& action, GSimpleAction* ga
         break;
     case WebView::ActionID::BookmarkItem:
         set_icon("globe-symbolic");
+        break;
+
+    case WebView::ActionID::ViewHistory:
+        set_icon("document-open-recent-symbolic");
+        set_accel("<Ctrl>h");
         break;
 
     case WebView::ActionID::OpenAboutPage:
@@ -437,6 +444,7 @@ void install_action_accelerators(GtkApplication* application, char const* detail
     case WebView::ActionID::NavigateForward:
     case WebView::ActionID::ToggleBookmark:
     case WebView::ActionID::ToggleBookmarksBar:
+    case WebView::ActionID::ViewHistory:
     case WebView::ActionID::OpenProcessesPage:
     case WebView::ActionID::OpenSettingsPage:
     case WebView::ActionID::ViewSource:

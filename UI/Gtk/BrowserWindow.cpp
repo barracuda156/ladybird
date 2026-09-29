@@ -201,6 +201,11 @@ void BrowserWindow::setup_ui(AdwApplication* app)
 
     adw_header_bar_set_title_widget(m_header_bar, GTK_WIDGET(m_location_entry));
 
+    GObjectPtr history_gmenu { create_application_menu(WebView::Application::the().history_menu(), [](WebView::Action& action) {
+        return ByteString::formatted("win.history-{}", static_cast<int>(action.id()));
+    }) };
+    append_submenu_to_section_containing_action(LadybirdWidgets::browser_window_hamburger_menu(browser_window_widget), "win.new-window", "History", G_MENU_MODEL(history_gmenu.ptr()));
+
     GObjectPtr developer_tools_submenu { g_menu_new() };
     GObjectPtr inspect_gmenu { create_application_menu(WebView::Application::the().inspect_menu(), [](WebView::Action& action) {
         return ByteString::formatted("win.inspect-{}", static_cast<int>(action.id()));
@@ -221,6 +226,9 @@ void BrowserWindow::setup_ui(AdwApplication* app)
     }),
         this);
 
+    add_menu_actions_to_map(G_ACTION_MAP(m_window), WebView::Application::the().history_menu(), [](WebView::Action& action) {
+        return ByteString::formatted("history-{}", static_cast<int>(action.id()));
+    });
     add_menu_actions_to_map(G_ACTION_MAP(m_window), WebView::Application::the().inspect_menu(), [](WebView::Action& action) {
         return ByteString::formatted("inspect-{}", static_cast<int>(action.id()));
     });
@@ -232,6 +240,7 @@ void BrowserWindow::setup_ui(AdwApplication* app)
     install_action_accelerators(application, "win.reload", WebView::Application::the().reload_action());
     install_action_accelerators(application, "win.preferences", WebView::Application::the().open_settings_page_action());
     install_action_accelerators(application, "win.about", WebView::Application::the().open_about_page_action());
+    install_menu_action_accelerators(application, "win.history", WebView::Application::the().history_menu());
     install_menu_action_accelerators(application, "win.inspect", WebView::Application::the().inspect_menu());
     install_menu_action_accelerators(application, "win.debug", WebView::Application::the().debug_menu());
 
@@ -335,6 +344,19 @@ Tab& BrowserWindow::create_child_tab(Web::HTML::ActivateTab activate_tab, Tab& p
         adw_tab_view_set_selected_page(m_tab_view, page);
 
     return tab_ref;
+}
+
+bool BrowserWindow::activate_tab_with_url(URL::URL const& url)
+{
+    for (auto& tab : m_tabs) {
+        if (tab->view().url() != url)
+            continue;
+        if (auto* page = tab->tab_page()) {
+            adw_tab_view_set_selected_page(m_tab_view, page);
+            return true;
+        }
+    }
+    return false;
 }
 
 void BrowserWindow::close_tab(Tab& tab)

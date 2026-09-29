@@ -30,6 +30,7 @@ public:
     Tab& create_new_tab(Web::HTML::ActivateTab activate_tab);
     Tab& create_new_tab(URL::URL const& url, Web::HTML::ActivateTab activate_tab);
     Tab& create_child_tab(Web::HTML::ActivateTab activate_tab, Tab& parent, u64 page_index);
+    bool activate_tab_with_url(URL::URL const&);
     void close_tab(Tab& tab);
     void close_current_tab();
     Tab* current_tab() const;
