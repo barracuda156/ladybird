@@ -108,6 +108,8 @@ static void apply_paint_style(SkPaint& paint, PaintStyle const& style)
         if (!image)
             return;
         auto const* sk_image = image->sk_image();
+        if (!sk_image)
+            return;
 
         auto repetition = canvas_pattern->repetition();
         auto repeat_x = first_is_one_of(repetition, CanvasPatternPaintStyle::Repetition::Repeat, CanvasPatternPaintStyle::Repetition::RepeatX);

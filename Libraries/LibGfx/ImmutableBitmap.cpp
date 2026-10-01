@@ -77,6 +77,13 @@ AlphaType ImmutableBitmap::alpha_type() const
 
 SkImage const* ImmutableBitmap::sk_image() const
 {
+    // With a GPU context a frame of video is kept as YUV planes, and only the display list player uploads it
+    // (ensure_sk_image()). What else draws or reads it (canvas drawImage() and createPattern(), WebGL
+    // texImage2D()) gets it uploaded here, as a frame that was never painted has no image yet.
+    if (!m_impl->sk_image && m_impl->yuv_data) {
+        if (auto context = SkiaBackendContext::the())
+            ensure_sk_image(*context);
+    }
     return m_impl->sk_image.get();
 }
 
@@ -148,11 +155,15 @@ ErrorOr<BitmapExportResult> ImmutableBitmap::export_to_byte_buffer(ExportFormat 
     if (width > 0 && height > 0) {
         if (format == ExportFormat::RGB888) {
             // 24 bit RGB is not supported by Skia, so we need to handle this format ourselves.
+            // A snapshot of a canvas and a frame of video have their pixels in an image only: read them back once.
+            auto source = bitmap();
+            if (!source)
+                return Error::from_string_literal("Gfx::ImmutableBitmap::export_to_byte_buffer has no pixels to export");
             auto raw_buffer = buffer.data();
             for (auto y = 0; y < height; y++) {
                 auto target_y = flags & ExportFlags::FlipY ? height - y - 1 : y;
                 for (auto x = 0; x < width; x++) {
-                    auto pixel = get_pixel(x, y);
+                    auto pixel = source->get_pixel(x, y);
                     auto buffer_offset = (target_y * buffer_pitch.value()) + (x * 3ull);
                     raw_buffer[buffer_offset + 0] = pixel.red();
                     raw_buffer[buffer_offset + 1] = pixel.green();
@@ -203,7 +214,7 @@ ErrorOr<BitmapExportResult> ImmutableBitmap::export_to_byte_buffer(ExportFormat 
 
 RefPtr<Gfx::Bitmap const> ImmutableBitmap::bitmap() const
 {
-    if (!m_impl->bitmap && m_impl->sk_image) {
+    if (!m_impl->bitmap && sk_image()) {
         auto bitmap = MUST(Gfx::Bitmap::create(Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied, { m_impl->sk_image->width(), m_impl->sk_image->height() }));
         auto image_info = SkImageInfo::Make(bitmap->width(), bitmap->height(), kBGRA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
         SkPixmap pixmap(image_info, bitmap->begin(), bitmap->pitch());
