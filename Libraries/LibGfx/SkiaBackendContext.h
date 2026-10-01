@@ -51,11 +51,30 @@ public:
     virtual MetalContext& metal_context() = 0;
     virtual VulkanContext const& vulkan_context() = 0;
 
-    void lock() { m_mutex.lock(); }
-    void unlock() { m_mutex.unlock(); }
+    // The mutex is recursive. The hooks run with it held, on the outermost lock() and before the outermost
+    // unlock(): an OpenGL context belongs to one thread at a time, so an OpenGL backend makes its context
+    // current there and puts the previous one back.
+    void lock()
+    {
+        m_mutex.lock();
+        if (m_lock_depth++ == 0)
+            did_lock();
+    }
+    void unlock()
+    {
+        VERIFY(m_lock_depth > 0);
+        if (--m_lock_depth == 0)
+            will_unlock();
+        m_mutex.unlock();
+    }
+
+protected:
+    virtual void did_lock() { }
+    virtual void will_unlock() { }
 
 private:
     Threading::Mutex m_mutex;
+    unsigned m_lock_depth { 0 }; // written only by the thread that holds m_mutex
 };
 
 }
