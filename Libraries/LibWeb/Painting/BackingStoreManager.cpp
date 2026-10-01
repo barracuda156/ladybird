@@ -118,7 +118,9 @@ void BackingStoreManager::reallocate_backing_stores(Gfx::IntSize size)
     auto front_bitmap = Gfx::Bitmap::create_shareable(Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied, size).release_value();
     auto back_bitmap = Gfx::Bitmap::create_shareable(Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied, size).release_value();
 
-#ifdef USE_VULKAN
+#if defined(USE_VULKAN) || defined(LADYBIRD_LEGACY_MACOS)
+    // GPU front and back stores; the finished picture is read back into the shareable bitmaps the GUI already
+    // receives (Vulkan on Linux, OpenGL on macOS without Metal).
     if (skia_backend_context) {
         front_store = Gfx::PaintingSurface::create_with_size(size, Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied);
         front_store->on_flush = [front_bitmap](auto& surface) {
