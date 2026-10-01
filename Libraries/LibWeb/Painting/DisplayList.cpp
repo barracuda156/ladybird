@@ -43,8 +43,15 @@ static bool command_is_clip(DisplayListCommand const& command)
 void DisplayListPlayer::execute(DisplayList& display_list, ScrollStateSnapshotByDisplayList&& scroll_state_snapshot_by_display_list, RefPtr<Gfx::PaintingSurface> surface)
 {
     TemporaryChange change { m_scroll_state_snapshots_by_display_list, move(scroll_state_snapshot_by_display_list) };
+    // A surface in memory (a screenshot, a cursor image) may still be drawn images that live on the graphics card,
+    // which Skia reads back through their own GPU context, so that context is held for every surface.
+    RefPtr<Gfx::SkiaBackendContext> context;
     if (surface) {
-        surface->lock_context();
+        context = surface->skia_backend_context();
+        if (!context)
+            context = Gfx::SkiaBackendContext::the();
+        if (context)
+            context->lock();
     }
     m_surface = surface;
     auto scroll_state_snapshot = m_scroll_state_snapshots_by_display_list.get(display_list).value_or({});
@@ -52,8 +59,8 @@ void DisplayListPlayer::execute(DisplayList& display_list, ScrollStateSnapshotBy
     if (surface)
         flush();
     m_surface = nullptr;
-    if (surface) {
-        surface->unlock_context();
+    if (context) {
+        context->unlock();
     }
 }
 

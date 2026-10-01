@@ -164,6 +164,20 @@ ErrorOr<BitmapExportResult> ImmutableBitmap::export_to_byte_buffer(ExportFormat 
             auto color_space = SkColorSpace::MakeSRGB();
 
             auto image_info = SkImageInfo::Make(width, height, skia_format, flags & ExportFlags::PremultiplyAlpha ? SkAlphaType::kPremul_SkAlphaType : SkAlphaType::kUnpremul_SkAlphaType, color_space);
+
+            // The image may live on the graphics card, or be uploaded there by the renderer meanwhile: drawing it
+            // into memory reads it back through its GPU context, which must be held for that. The guard is made
+            // before the surface so that the surface goes first.
+            auto context = m_impl->context;
+            if (!context)
+                context = SkiaBackendContext::the();
+            if (context)
+                context->lock();
+            ScopeGuard unlock_guard = [&context] {
+                if (context)
+                    context->unlock();
+            };
+
             auto surface = SkSurfaces::WrapPixels(image_info, buffer.data(), buffer_pitch.value());
             VERIFY(surface);
             auto* surface_canvas = surface->getCanvas();

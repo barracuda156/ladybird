@@ -40,10 +40,18 @@ struct PainterSkia::Impl {
     template<typename Callback>
     void with_canvas(Callback&& callback)
     {
-        painting_surface->lock_context();
+        // The surface may be in memory and still be drawn images that live on the graphics card (a page image
+        // that the renderer uploaded, a snapshot of a GPU canvas in getImageData()): Skia reads them back through
+        // their own GPU context, which must be held for that.
+        auto context = painting_surface->skia_backend_context();
+        if (!context)
+            context = SkiaBackendContext::the();
+        if (context)
+            context->lock();
         auto& canvas = painting_surface->canvas();
         callback(canvas);
-        painting_surface->unlock_context();
+        if (context)
+            context->unlock();
     }
 };
 
