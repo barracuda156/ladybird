@@ -8,6 +8,7 @@
 
 #include <AK/ByteBuffer.h>
 #include <AK/Concepts.h>
+#include <AK/Endian.h>
 #include <AK/MaybeOwned.h>
 #include <AK/NumericLimits.h>
 #include <AK/OwnPtr.h>
@@ -173,7 +174,9 @@ public:
 
         if (m_bit_count > 0) {
             auto bits_to_read = min(buffer.size() * bits_per_byte, m_bit_count);
-            auto result = TRY(read_bits(bits_to_read));
+            // The least significant byte of the bit buffer is the first byte of the stream, so hand the bits out as a
+            // little-endian number, whatever the byte order of the host.
+            LittleEndian<BufferType> result { TRY(read_bits(bits_to_read)) };
 
             bytes_read = bits_to_read / bits_per_byte;
             buffer.overwrite(0, &result, bytes_read);
@@ -263,10 +266,12 @@ private:
             size_t bits_to_read = bit_buffer_size - m_bit_count;
             size_t bytes_to_read = bits_to_read / bits_per_byte;
 
-            BufferType buffer = 0;
+            // The first byte of the stream must become the least significant byte of the bit buffer, so read the bytes
+            // as a little-endian number, whatever the byte order of the host.
+            LittleEndian<BufferType> buffer {};
             auto bytes = TRY(m_stream->read_some({ &buffer, bytes_to_read }));
 
-            m_bit_buffer |= (buffer << m_bit_count);
+            m_bit_buffer |= (static_cast<BufferType>(buffer) << m_bit_count);
             m_bit_count += bytes.size() * bits_per_byte;
         }
 
@@ -406,7 +411,10 @@ public:
     ALWAYS_INLINE ErrorOr<void> flush_buffer_to_stream()
     {
         auto bytes_to_write = m_bit_count / bits_per_byte;
-        TRY(m_stream->write_until_depleted({ &m_bit_buffer, bytes_to_write }));
+        // The least significant byte of the bit buffer is the first byte of the stream, so write the buffer as a
+        // little-endian number, whatever the byte order of the host.
+        LittleEndian<BufferType> buffer { m_bit_buffer };
+        TRY(m_stream->write_until_depleted({ &buffer, bytes_to_write }));
 
         if (m_bit_count == bit_buffer_size) {
             m_bit_buffer = 0;
