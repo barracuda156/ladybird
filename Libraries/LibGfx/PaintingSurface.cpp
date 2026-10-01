@@ -103,7 +103,16 @@ NonnullRefPtr<PaintingSurface> PaintingSurface::create_with_size(IntSize size, B
     auto context = SkiaBackendContext::the();
     if (context) {
         context->lock();
+#ifdef LADYBIRD_LEGACY_MACOS
+        // Top-left like the bitmaps the picture is read into: Skia then reads the rows straight instead of
+        // turning them (6 ms of 27 per 1024x768 frame on a GeForce 6600). An empty size gets no surface, as
+        // with the short overload below.
+        sk_sp<SkSurface> surface;
+        if (image_info.width() && image_info.height())
+            surface = SkSurfaces::RenderTarget(context->sk_context(), skgpu::Budgeted::kNo, image_info, 0, kTopLeft_GrSurfaceOrigin, nullptr);
+#else
         auto surface = SkSurfaces::RenderTarget(context->sk_context(), skgpu::Budgeted::kNo, image_info);
+#endif
         context->unlock();
         if (surface)
             return adopt_ref(*new PaintingSurface(make<Impl>(context, size, surface, nullptr)));
