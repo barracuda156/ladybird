@@ -39,6 +39,12 @@ public:
     static RefPtr<SkiaBackendContext> create_metal_context(NonnullRefPtr<MetalContext>);
 #endif
 
+#ifdef LADYBIRD_LEGACY_MACOS
+    // Skia over a CGL context of the OpenGL of the system (macOS without Metal, e.g. PowerPC). Null when no
+    // accelerated context can be had or Skia refuses the driver: painting then stays on the CPU.
+    static RefPtr<SkiaBackendContext> create_opengl_context();
+#endif
+
     static void initialize_gpu_backend();
     static RefPtr<SkiaBackendContext> the();
 
